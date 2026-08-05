@@ -40,6 +40,16 @@ export async function checkin(userId: string, roomId: string, note?: string): Pr
   return data as Checkin
 }
 
+/** Cancel a checkin by id */
+export async function cancelCheckin(checkinId: string): Promise<void> {
+  const { error } = await supabase
+    .from('checkins')
+    .delete()
+    .eq('id', checkinId)
+
+  if (error) throw error
+}
+
 /** Get today's checkin count for a user */
 export async function getTodayCheckinCount(userId: string, roomId: string): Promise<number> {
   const date = getTodayDate()

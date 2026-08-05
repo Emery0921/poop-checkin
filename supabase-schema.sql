@@ -35,3 +35,4 @@ create policy "Anyone can read users" on users for select using (true);
 create policy "Anyone can insert users" on users for insert with check (true);
 create policy "Anyone can read checkins" on checkins for select using (true);
 create policy "Anyone can insert checkins" on checkins for insert with check (true);
+create policy "Anyone can delete checkins" on checkins for delete using (true);
