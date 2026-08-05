@@ -2,9 +2,21 @@ import { supabase } from './supabase'
 import { getTodayDate } from './utils'
 import type { User, Checkin, RankItem } from './types'
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 /** Create or get user in a room */
 export async function joinRoom(roomId: string, nickname: string, emoji: string): Promise<User> {
-  const id = crypto.randomUUID()
+  const id = generateUUID()
   const { data, error } = await supabase
     .from('users')
     .insert({ id, nickname, emoji, room_id: roomId })
