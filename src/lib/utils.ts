@@ -53,3 +53,7 @@ export function getLocalUser(roomId: string): { id: string; nickname: string; em
 export function setLocalUser(roomId: string, user: { id: string; nickname: string; emoji: string }) {
   localStorage.setItem(STORAGE_KEY_PREFIX + roomId, JSON.stringify(user))
 }
+
+export function clearLocalUser(roomId: string) {
+  localStorage.removeItem(STORAGE_KEY_PREFIX + roomId)
+}

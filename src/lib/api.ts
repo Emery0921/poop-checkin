@@ -27,6 +27,11 @@ export async function joinRoom(roomId: string, nickname: string, emoji: string):
   return data as User
 }
 
+/** Check whether an error is a Postgres foreign key violation (e.g. user_id no longer exists) */
+export function isForeignKeyViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23503'
+}
+
 /** Perform check-in */
 export async function checkin(userId: string, roomId: string, note?: string): Promise<Checkin> {
   const date = getTodayDate()

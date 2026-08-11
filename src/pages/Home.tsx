@@ -3,7 +3,7 @@ import { NicknameModal } from '../components/NicknameModal'
 import { RankingList } from '../components/RankingList'
 import { Calendar } from '../components/Calendar'
 import { Achievements } from '../components/Achievements'
-import { getLocalUser, setLocalUser } from '../lib/utils'
+import { getLocalUser, setLocalUser, clearLocalUser } from '../lib/utils'
 import * as api from '../lib/api'
 import type { RankItem } from '../lib/types'
 
@@ -91,6 +91,14 @@ export function Home() {
         })
       }, 1000)
       await loadData()
+    } catch (err) {
+      // 用户已被删除（外键约束失败），清空本地身份重新走注册流程
+      if (api.isForeignKeyViolation(err)) {
+        clearLocalUser(roomId)
+        setUser(null)
+      } else {
+        alert('打卡失败，请重试')
+      }
     } finally {
       setLoading(false)
     }
@@ -123,7 +131,7 @@ export function Home() {
   }
 
   if (!user) {
-    return <NicknameModal onJoin={handleJoin} />
+    return <NicknameModal onJoin={handleJoin} loading={loading} />
   }
 
   const myStats = ranking.find(r => r.user_id === user.id)

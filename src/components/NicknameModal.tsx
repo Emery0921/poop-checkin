@@ -3,15 +3,16 @@ import { randomEmoji } from '../lib/utils'
 
 interface Props {
   onJoin: (nickname: string, emoji: string) => void
+  loading: boolean
 }
 
-export function NicknameModal({ onJoin }: Props) {
+export function NicknameModal({ onJoin, loading }: Props) {
   const [nickname, setNickname] = useState('')
   const [emoji, setEmoji] = useState(randomEmoji)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (nickname.trim()) {
+    if (nickname.trim() && !loading) {
       onJoin(nickname.trim(), emoji)
     }
   }
@@ -45,10 +46,10 @@ export function NicknameModal({ onJoin }: Props) {
         />
         <button
           type="submit"
-          disabled={!nickname.trim()}
+          disabled={!nickname.trim() || loading}
           className="w-full mt-4 bg-purple-500 text-white rounded-xl py-3 text-lg font-medium disabled:opacity-40 hover:bg-purple-600 transition-colors"
         >
-          开始打卡
+          {loading ? '加入中...' : '开始打卡'}
         </button>
       </form>
     </div>
