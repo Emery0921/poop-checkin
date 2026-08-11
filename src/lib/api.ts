@@ -91,6 +91,7 @@ export async function getRanking(roomId: string): Promise<RankItem[]> {
     checkinsPerUser.set(c.user_id, list)
   }
 
+  const today = getTodayDate()
   const ranking: RankItem[] = users.map(u => {
     const dates = checkinsPerUser.get(u.id) || []
     return {
@@ -99,6 +100,7 @@ export async function getRanking(roomId: string): Promise<RankItem[]> {
       emoji: u.emoji,
       total: dates.length,
       streak: calcStreakFromDates(dates),
+      checkedToday: dates.includes(today),
     }
   })
 

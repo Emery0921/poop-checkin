@@ -21,4 +21,5 @@ export interface RankItem {
   emoji: string
   total: number
   streak: number
+  checkedToday: boolean
 }

@@ -26,7 +26,10 @@ export function RankingList({ ranking, currentUserId }: Props) {
           </span>
           <span className="text-2xl">{item.emoji}</span>
           <div className="flex-1 text-left">
-            <p className="font-medium text-sm">{item.nickname}</p>
+            <p className="font-medium text-sm flex items-center gap-1">
+              {item.nickname}
+              {item.checkedToday && <span className="text-xs text-green-500">✅ 今日已打卡</span>}
+            </p>
             <p className="text-xs text-gray-400">
               🔥 连续{item.streak}天
             </p>
