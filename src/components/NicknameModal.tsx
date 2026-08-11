@@ -3,18 +3,67 @@ import { randomEmoji } from '../lib/utils'
 
 interface Props {
   onJoin: (nickname: string, emoji: string) => void
+  onRecover: (code: string) => Promise<boolean>
   loading: boolean
 }
 
-export function NicknameModal({ onJoin, loading }: Props) {
+export function NicknameModal({ onJoin, onRecover, loading }: Props) {
+  const [mode, setMode] = useState<'join' | 'recover'>('join')
   const [nickname, setNickname] = useState('')
   const [emoji, setEmoji] = useState(randomEmoji)
+  const [code, setCode] = useState('')
+  const [recoverError, setRecoverError] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (nickname.trim() && !loading) {
       onJoin(nickname.trim(), emoji)
     }
+  }
+
+  const handleRecoverSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!code.trim() || loading) return
+    setRecoverError('')
+    const ok = await onRecover(code.trim())
+    if (!ok) setRecoverError('找回码不正确，请检查后重试')
+  }
+
+  if (mode === 'recover') {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <form
+          onSubmit={handleRecoverSubmit}
+          className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+        >
+          <h2 className="text-xl font-bold text-center mb-4">找回身份</h2>
+          <input
+            type="text"
+            value={code}
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            placeholder="输入 8 位找回码"
+            maxLength={8}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-lg tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-purple-300"
+            autoFocus
+          />
+          {recoverError && <p className="text-sm text-red-500 text-center mt-2">{recoverError}</p>}
+          <button
+            type="submit"
+            disabled={!code.trim() || loading}
+            className="w-full mt-4 bg-purple-500 text-white rounded-xl py-3 text-lg font-medium disabled:opacity-40 hover:bg-purple-600 transition-colors"
+          >
+            {loading ? '找回中...' : '找回身份'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('join'); setRecoverError('') }}
+            className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            没有找回码？去加入
+          </button>
+        </form>
+      </div>
+    )
   }
 
   return (
@@ -50,6 +99,13 @@ export function NicknameModal({ onJoin, loading }: Props) {
           className="w-full mt-4 bg-purple-500 text-white rounded-xl py-3 text-lg font-medium disabled:opacity-40 hover:bg-purple-600 transition-colors"
         >
           {loading ? '加入中...' : '开始打卡'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('recover')}
+          className="w-full mt-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          换设备了？用找回码恢复身份
         </button>
       </form>
     </div>

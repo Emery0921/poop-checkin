@@ -3,6 +3,7 @@ import { NicknameModal } from '../components/NicknameModal'
 import { RankingList } from '../components/RankingList'
 import { Calendar } from '../components/Calendar'
 import { Achievements } from '../components/Achievements'
+import { ConfirmModal } from '../components/ConfirmModal'
 import { getLocalUser, setLocalUser, clearLocalUser } from '../lib/utils'
 import * as api from '../lib/api'
 import type { RankItem } from '../lib/types'
@@ -26,6 +27,8 @@ export function Home() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [lastCheckinId, setLastCheckinId] = useState<string | null>(null)
   const [undoCountdown, setUndoCountdown] = useState(0)
+  const [showRecoveryCode, setShowRecoveryCode] = useState(false)
+  const [copied, setCopied] = useState(false)
   const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadData = useCallback(async () => {
@@ -53,9 +56,24 @@ export function Home() {
     setLoading(true)
     try {
       const newUser = await api.joinRoom(roomId, nickname, emoji)
-      const localUser = { id: newUser.id, nickname, emoji }
+      const localUser = { id: newUser.id, nickname, emoji, recoveryCode: newUser.recovery_code }
       setLocalUser(roomId, localUser)
       setUser(localUser)
+      setShowRecoveryCode(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRecover = async (code: string): Promise<boolean> => {
+    setLoading(true)
+    try {
+      const found = await api.recoverUser(roomId, code)
+      if (!found) return false
+      const localUser = { id: found.id, nickname: found.nickname, emoji: found.emoji, recoveryCode: found.recovery_code }
+      setLocalUser(roomId, localUser)
+      setUser(localUser)
+      return true
     } finally {
       setLoading(false)
     }
@@ -130,8 +148,15 @@ export function Home() {
     }
   }
 
+  const handleCopyRecoveryCode = () => {
+    if (!user || !navigator.clipboard) return
+    navigator.clipboard.writeText(user.recoveryCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   if (!user) {
-    return <NicknameModal onJoin={handleJoin} loading={loading} />
+    return <NicknameModal onJoin={handleJoin} onRecover={handleRecover} loading={loading} />
   }
 
   const myStats = ranking.find(r => r.user_id === user.id)
@@ -208,29 +233,41 @@ export function Home() {
         📢 分享到群
       </button>
 
+      {/* Recovery Code */}
+      <button
+        onClick={() => setShowRecoveryCode(true)}
+        className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        🔑 查看我的找回码
+      </button>
+
+      {/* Recovery Code Modal */}
+      {showRecoveryCode && (
+        <ConfirmModal
+          icon="🔑"
+          title="我的找回码"
+          description="换设备后在加入页面输入此码即可找回身份和数据"
+          cancelText="关闭"
+          confirmText={copied ? '已复制 ✓' : '复制找回码'}
+          onCancel={() => setShowRecoveryCode(false)}
+          onConfirm={handleCopyRecoveryCode}
+        >
+          <p className="text-2xl font-bold tracking-widest text-purple-600 bg-purple-50 rounded-xl py-3 mb-4">
+            {user.recoveryCode}
+          </p>
+        </ConfirmModal>
+      )}
+
       {/* Confirm Modal */}
       {showConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-            <p className="text-5xl mb-4">💩</p>
-            <h3 className="text-lg font-bold mb-2">确认打卡？</h3>
-            <p className="text-sm text-gray-500 mb-6">打卡后 3 分钟内可撤回</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleConfirmCheckin}
-                className="flex-1 py-3 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-600 transition-colors"
-              >
-                确认打卡
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          icon="💩"
+          title="确认打卡？"
+          description="打卡后 3 分钟内可撤回"
+          confirmText="确认打卡"
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={handleConfirmCheckin}
+        />
       )}
     </div>
   )

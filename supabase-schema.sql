@@ -6,10 +6,12 @@ create table users (
   nickname text not null,
   emoji text not null,
   room_id text not null,
+  recovery_code text not null,
   created_at timestamptz default now()
 );
 
 create index idx_users_room on users(room_id);
+create unique index idx_users_room_recovery_code on users(room_id, recovery_code);
 
 -- Checkins table
 create table checkins (

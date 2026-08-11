@@ -3,6 +3,7 @@ export interface User {
   nickname: string
   emoji: string
   room_id: string
+  recovery_code: string
   created_at: string
 }
 

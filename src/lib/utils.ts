@@ -40,7 +40,7 @@ function getYesterday(): string {
 
 const STORAGE_KEY_PREFIX = 'poop_user_'
 
-export function getLocalUser(roomId: string): { id: string; nickname: string; emoji: string } | null {
+export function getLocalUser(roomId: string): { id: string; nickname: string; emoji: string; recoveryCode: string } | null {
   const raw = localStorage.getItem(STORAGE_KEY_PREFIX + roomId)
   if (!raw) return null
   try {
@@ -50,10 +50,20 @@ export function getLocalUser(roomId: string): { id: string; nickname: string; em
   }
 }
 
-export function setLocalUser(roomId: string, user: { id: string; nickname: string; emoji: string }) {
+export function setLocalUser(roomId: string, user: { id: string; nickname: string; emoji: string; recoveryCode: string }) {
   localStorage.setItem(STORAGE_KEY_PREFIX + roomId, JSON.stringify(user))
 }
 
 export function clearLocalUser(roomId: string) {
   localStorage.removeItem(STORAGE_KEY_PREFIX + roomId)
+}
+
+/** Generate an 8-char recovery code (uppercase letters + digits) */
+export function generateRecoveryCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // 去掉容易混淆的 0/O/1/I
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return code
 }

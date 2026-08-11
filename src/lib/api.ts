@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { getTodayDate } from './utils'
+import { getTodayDate, generateRecoveryCode } from './utils'
 import type { User, Checkin, RankItem } from './types'
 
 function generateUUID(): string {
@@ -17,14 +17,28 @@ function generateUUID(): string {
 /** Create or get user in a room */
 export async function joinRoom(roomId: string, nickname: string, emoji: string): Promise<User> {
   const id = generateUUID()
+  const recoveryCode = generateRecoveryCode()
   const { data, error } = await supabase
     .from('users')
-    .insert({ id, nickname, emoji, room_id: roomId })
+    .insert({ id, nickname, emoji, room_id: roomId, recovery_code: recoveryCode })
     .select()
     .single()
 
   if (error) throw error
   return data as User
+}
+
+/** Find a user by recovery code within a room */
+export async function recoverUser(roomId: string, recoveryCode: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select()
+    .eq('room_id', roomId)
+    .eq('recovery_code', recoveryCode.trim().toUpperCase())
+    .maybeSingle()
+
+  if (error) throw error
+  return data as User | null
 }
 
 /** Check whether an error is a Postgres foreign key violation (e.g. user_id no longer exists) */
