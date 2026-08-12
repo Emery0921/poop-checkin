@@ -1,4 +1,5 @@
 import type { RankItem } from '../lib/types'
+import { formatTime } from '../lib/utils'
 
 interface Props {
   ranking: RankItem[]
@@ -32,6 +33,7 @@ export function RankingList({ ranking, currentUserId }: Props) {
             </p>
             <p className="text-xs text-gray-400">
               🔥 连续{item.streak}天
+              {item.checkedToday && ` · ${item.todayTimes.map(formatTime).join('、')}`}
             </p>
           </div>
           <div className="text-right">

@@ -9,6 +9,16 @@ export function getTodayDate(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
 }
 
+/** Format an ISO timestamp as HH:mm:ss in Asia/Shanghai timezone */
+export function formatTime(isoTime: string): string {
+  return new Date(isoTime).toLocaleTimeString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 /** Calculate consecutive days streak ending at today */
 export function calcStreak(dates: string[]): number {
   if (dates.length === 0) return 0

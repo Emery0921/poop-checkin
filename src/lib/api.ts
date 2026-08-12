@@ -69,17 +69,18 @@ export async function cancelCheckin(checkinId: string): Promise<void> {
   if (error) throw error
 }
 
-/** Get today's checkin count for a user */
-export async function getTodayCheckinCount(userId: string, roomId: string): Promise<number> {
+/** Get today's checkin count and timestamps for a user */
+export async function getTodayCheckins(userId: string, roomId: string): Promise<Checkin[]> {
   const date = getTodayDate()
-  const { count } = await supabase
+  const { data } = await supabase
     .from('checkins')
-    .select('*', { count: 'exact', head: true })
+    .select('*')
     .eq('user_id', userId)
     .eq('room_id', roomId)
     .eq('date', date)
+    .order('created_at', { ascending: true })
 
-  return count ?? 0
+  return (data as Checkin[]) || []
 }
 
 /** Get ranking for a room */
@@ -95,7 +96,7 @@ export async function getRanking(roomId: string): Promise<RankItem[]> {
   // Get all checkins for the room
   const { data: checkins } = await supabase
     .from('checkins')
-    .select('user_id, date')
+    .select('user_id, date, created_at')
     .eq('room_id', roomId)
     .order('date', { ascending: false })
 
@@ -103,23 +104,32 @@ export async function getRanking(roomId: string): Promise<RankItem[]> {
 
   // Build ranking
   const checkinsPerUser = new Map<string, string[]>()
+  const todayTimesPerUser = new Map<string, string[]>()
 
+  const today = getTodayDate()
   for (const c of checkins) {
     const list = checkinsPerUser.get(c.user_id) || []
     list.push(c.date)
     checkinsPerUser.set(c.user_id, list)
+
+    if (c.date === today) {
+      const times = todayTimesPerUser.get(c.user_id) || []
+      times.push(c.created_at)
+      todayTimesPerUser.set(c.user_id, times)
+    }
   }
 
-  const today = getTodayDate()
   const ranking: RankItem[] = users.map(u => {
     const dates = checkinsPerUser.get(u.id) || []
+    const todayTimes = (todayTimesPerUser.get(u.id) || []).sort()
     return {
       user_id: u.id,
       nickname: u.nickname,
       emoji: u.emoji,
       total: dates.length,
       streak: calcStreakFromDates(dates),
-      checkedToday: dates.includes(today),
+      checkedToday: todayTimes.length > 0,
+      todayTimes,
     }
   })
 

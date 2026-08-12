@@ -6,7 +6,7 @@ import { Achievements } from '../components/Achievements'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { getLocalUser, setLocalUser, clearLocalUser } from '../lib/utils'
 import * as api from '../lib/api'
-import type { RankItem } from '../lib/types'
+import type { RankItem, Checkin } from '../lib/types'
 
 const UNDO_DURATION = 180 // 3 minutes in seconds
 
@@ -18,7 +18,7 @@ function getRoomId(): string {
 export function Home() {
   const roomId = getRoomId()
   const [user, setUser] = useState(getLocalUser(roomId))
-  const [todayCount, setTodayCount] = useState(0)
+  const [todayCheckins, setTodayCheckins] = useState<Checkin[]>([])
   const [ranking, setRanking] = useState<RankItem[]>([])
   const [myDates, setMyDates] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -33,13 +33,13 @@ export function Home() {
 
   const loadData = useCallback(async () => {
     if (!user) return
-    const [rankData, count, dates] = await Promise.all([
+    const [rankData, checkins, dates] = await Promise.all([
       api.getRanking(roomId),
-      api.getTodayCheckinCount(user.id, roomId),
+      api.getTodayCheckins(user.id, roomId),
       api.getCheckinDates(user.id, roomId),
     ])
     setRanking(rankData)
-    setTodayCount(count)
+    setTodayCheckins(checkins)
     setMyDates(dates)
   }, [user, roomId])
 
@@ -90,7 +90,7 @@ export function Home() {
     setLoading(true)
     try {
       const checkin = await api.checkin(user.id, roomId)
-      setTodayCount(prev => prev + 1)
+      setTodayCheckins(prev => [...prev, checkin])
       setAnimating(true)
       setTimeout(() => setAnimating(false), 1000)
       // Start undo countdown
@@ -126,6 +126,7 @@ export function Home() {
     if (!lastCheckinId) return
     try {
       await api.cancelCheckin(lastCheckinId)
+      setTodayCheckins(prev => prev.filter(c => c.id !== lastCheckinId))
       setLastCheckinId(null)
       setUndoCountdown(0)
       if (undoTimerRef.current) {
@@ -181,7 +182,7 @@ export function Home() {
           💩
         </button>
         <p className="mt-3 text-sm text-gray-500">
-          {todayCount > 0 ? `今日已打卡 ${todayCount} 次 💪` : '点击打卡'}
+          {todayCheckins.length > 0 ? `今日已打卡 ${todayCheckins.length} 次 💪` : '点击打卡'}
         </p>
         {myStats && (
           <p className="text-xs text-gray-400 mt-1">

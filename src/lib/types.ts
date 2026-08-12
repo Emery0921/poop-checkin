@@ -23,4 +23,5 @@ export interface RankItem {
   total: number
   streak: number
   checkedToday: boolean
+  todayTimes: string[] // ISO timestamps of today's checkins
 }
