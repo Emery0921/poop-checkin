@@ -20,6 +20,7 @@ create table checkins (
   room_id text not null,
   date text not null, -- YYYY-MM-DD in Asia/Shanghai
   note text,
+  is_makeup boolean not null default false, -- 是否为补卡（每周限 1 次，前端校验）
   created_at timestamptz default now()
 );
 

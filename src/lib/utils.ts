@@ -48,6 +48,58 @@ function getYesterday(): string {
   return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
 }
 
+/** Parse a YYYY-MM-DD string as UTC midnight, so calendar math never depends on the device timezone */
+function parseDate(dateStr: string): Date {
+  return new Date(dateStr + 'T00:00:00Z')
+}
+
+/** Shift a date string by the given number of days (negative = past) */
+function shiftDate(dateStr: string, days: number): string {
+  const d = parseDate(dateStr)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+/** Get the Monday (YYYY-MM-DD) of the week that contains the given date string */
+export function getWeekStart(dateStr: string): string {
+  const day = parseDate(dateStr).getUTCDay() // 0 = Sunday, 1 = Monday, ...
+  return shiftDate(dateStr, -(day === 0 ? 6 : day - 1))
+}
+
+/** Get the Monday keys of the most recent weeks, newest first (including the current week) */
+export function getRecentWeekStarts(count = 8): string[] {
+  const thisWeek = getWeekStart(getTodayDate())
+  return Array.from({ length: count }, (_, i) => shiftDate(thisWeek, -7 * i))
+}
+
+/** Format a week (by its Monday) as 本周 / 上周 / "MM-DD ~ MM-DD" */
+export function formatWeekLabel(weekStart: string): string {
+  const thisWeek = getWeekStart(getTodayDate())
+  if (weekStart === thisWeek) return '本周'
+  if (weekStart === shiftDate(thisWeek, -7)) return '上周'
+  return `${weekStart.slice(5)} ~ ${shiftDate(weekStart, 6).slice(5)}`
+}
+
+/** Convert an ISO timestamp to a YYYY-MM-DD date string in Asia/Shanghai */
+export function toDateString(isoTime: string): string {
+  return new Date(isoTime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+}
+
+const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+/** Format a date string as "MM-DD 周x" for display */
+export function formatDateWithWeekday(dateStr: string): string {
+  return `${dateStr.slice(5)} ${WEEKDAY_LABELS[parseDate(dateStr).getUTCDay()]}`
+}
+
+/** Get all dates (YYYY-MM-DD) that are in the past relative to today and not yet checked in, within a lookback window */
+export function getMakeupCandidateDates(checkedDates: string[], lookbackDays = 14): string[] {
+  const checkedSet = new Set(checkedDates)
+  const today = getTodayDate()
+  return Array.from({ length: lookbackDays }, (_, i) => shiftDate(today, -(i + 1)))
+    .filter(date => !checkedSet.has(date))
+}
+
 const STORAGE_KEY_PREFIX = 'poop_user_'
 
 export function getLocalUser(roomId: string): { id: string; nickname: string; emoji: string; recoveryCode: string } | null {

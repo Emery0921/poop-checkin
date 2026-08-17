@@ -4,11 +4,16 @@ import { RankingList } from '../components/RankingList'
 import { Calendar } from '../components/Calendar'
 import { Achievements } from '../components/Achievements'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { getLocalUser, setLocalUser, clearLocalUser } from '../lib/utils'
+import { MakeupModal } from '../components/MakeupModal'
+import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getTodayDate, getWeekStart, getRecentWeekStarts, formatWeekLabel } from '../lib/utils'
 import * as api from '../lib/api'
 import type { RankItem, Checkin } from '../lib/types'
 
 const UNDO_DURATION = 180 // 3 minutes in seconds
+
+const RANK_MODE_OPTIONS = [['week', '本周榜'], ['all', '总榜']] as const
+
+const WEEK_OPTIONS = getRecentWeekStarts()
 
 function getRoomId(): string {
   const params = new URLSearchParams(window.location.search)
@@ -20,6 +25,9 @@ export function Home() {
   const [user, setUser] = useState(getLocalUser(roomId))
   const [todayCheckins, setTodayCheckins] = useState<Checkin[]>([])
   const [ranking, setRanking] = useState<RankItem[]>([])
+  const [weekRanking, setWeekRanking] = useState<RankItem[]>([])
+  const [rankMode, setRankMode] = useState<'week' | 'all'>('week')
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(getTodayDate()))
   const [myDates, setMyDates] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [animating, setAnimating] = useState(false)
@@ -29,19 +37,25 @@ export function Home() {
   const [undoCountdown, setUndoCountdown] = useState(0)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showMakeup, setShowMakeup] = useState(false)
+  const [makeupDate, setMakeupDate] = useState<string | null>(null)
+  const [makeupRemaining, setMakeupRemaining] = useState(0)
   const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadData = useCallback(async () => {
     if (!user) return
-    const [rankData, checkins, dates] = await Promise.all([
-      api.getRanking(roomId),
+    const [rankData, checkins, dates, quota] = await Promise.all([
+      api.getRankings(roomId, weekStart),
       api.getTodayCheckins(user.id, roomId),
       api.getCheckinDates(user.id, roomId),
+      api.getMakeupQuota(user.id, roomId),
     ])
-    setRanking(rankData)
+    setRanking(rankData.all)
+    setWeekRanking(rankData.week)
     setTodayCheckins(checkins)
     setMyDates(dates)
-  }, [user, roomId])
+    setMakeupRemaining(quota.remaining)
+  }, [user, roomId, weekStart])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -139,6 +153,37 @@ export function Home() {
     }
   }
 
+  const handleMakeupClick = () => {
+    if (!user || loading || makeupRemaining <= 0) return
+    setMakeupDate(null)
+    setShowMakeup(true)
+  }
+
+  const handleConfirmMakeup = async () => {
+    if (!user || !makeupDate || loading || makeupRemaining <= 0) return
+    setLoading(true)
+    try {
+      await api.makeupCheckin(user.id, roomId, makeupDate)
+      setShowMakeup(false)
+      setMakeupDate(null)
+      await loadData()
+    } catch (err) {
+      if (api.isForeignKeyViolation(err)) {
+        clearLocalUser(roomId)
+        setUser(null)
+      } else if (err instanceof api.MakeupQuotaError) {
+        setShowMakeup(false)
+        setMakeupDate(null)
+        setMakeupRemaining(0)
+        alert('本周补卡机会已用完，下周一恢复')
+      } else {
+        alert('补卡失败，请重试')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleShare = () => {
     const url = window.location.origin + window.location.pathname + '?room=' + roomId
     const myRank = ranking.findIndex(r => r.user_id === user?.id) + 1
@@ -189,6 +234,13 @@ export function Home() {
             累计 {myStats.total} 次 · 连续 {myStats.streak} 天
           </p>
         )}
+        <button
+          onClick={handleMakeupClick}
+          disabled={loading || makeupRemaining <= 0}
+          className="mt-2 text-xs text-purple-400 hover:text-purple-600 transition-colors disabled:opacity-40 disabled:hover:text-purple-400"
+        >
+          🩹 补卡（本周剩余 {makeupRemaining} 次）
+        </button>
       </div>
 
       {/* Undo Banner */}
@@ -222,7 +274,37 @@ export function Home() {
       </div>
 
       {/* Tab Content */}
-      {tab === 'rank' && <RankingList ranking={ranking} currentUserId={user.id} />}
+      {tab === 'rank' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              {RANK_MODE_OPTIONS.map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setRankMode(key)}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    rankMode === key ? 'bg-white font-medium shadow-sm' : 'text-gray-500'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {rankMode === 'week' && (
+              <select
+                value={weekStart}
+                onChange={e => setWeekStart(e.target.value)}
+                className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded-lg outline-none"
+              >
+                {WEEK_OPTIONS.map(week => (
+                  <option key={week} value={week}>{formatWeekLabel(week)}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <RankingList ranking={rankMode === 'week' ? weekRanking : ranking} currentUserId={user.id} />
+        </div>
+      )}
       {tab === 'calendar' && <Calendar dates={myDates} />}
       {tab === 'achievements' && <Achievements total={myStats?.total ?? 0} streak={myStats?.streak ?? 0} />}
 
@@ -268,6 +350,18 @@ export function Home() {
           confirmText="确认打卡"
           onCancel={() => setShowConfirm(false)}
           onConfirm={handleConfirmCheckin}
+        />
+      )}
+
+      {/* Makeup Modal */}
+      {showMakeup && (
+        <MakeupModal
+          dates={getMakeupCandidateDates(myDates)}
+          selectedDate={makeupDate}
+          onSelectDate={setMakeupDate}
+          onCancel={() => setShowMakeup(false)}
+          onConfirm={handleConfirmMakeup}
+          loading={loading}
         />
       )}
     </div>

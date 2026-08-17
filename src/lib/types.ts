@@ -14,6 +14,7 @@ export interface Checkin {
   date: string // YYYY-MM-DD in Asia/Shanghai
   created_at: string
   note?: string
+  is_makeup?: boolean
 }
 
 export interface RankItem {

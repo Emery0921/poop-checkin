@@ -1,6 +1,17 @@
 import { supabase } from './supabase'
-import { getTodayDate, generateRecoveryCode } from './utils'
+import { getTodayDate, generateRecoveryCode, getWeekStart, toDateString } from './utils'
 import type { User, Checkin, RankItem } from './types'
+
+/** 每周补卡机会上限 */
+export const MAKEUP_QUOTA_PER_WEEK = 1
+
+/** 本周补卡机会已用完 */
+export class MakeupQuotaError extends Error {
+  constructor() {
+    super('本周补卡机会已用完')
+    this.name = 'MakeupQuotaError'
+  }
+}
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -69,6 +80,39 @@ export async function cancelCheckin(checkinId: string): Promise<void> {
   if (error) throw error
 }
 
+/** Perform a makeup checkin for a past date (limited to once per calendar week, checked client-side) */
+export async function makeupCheckin(userId: string, roomId: string, date: string, note?: string): Promise<Checkin> {
+  // 落库前重新校验配额，避免弹窗停留期间配额已被用掉
+  const { remaining } = await getMakeupQuota(userId, roomId)
+  if (remaining <= 0) throw new MakeupQuotaError()
+
+  const { data, error } = await supabase
+    .from('checkins')
+    .insert({ user_id: userId, room_id: roomId, date, note, is_makeup: true })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as Checkin
+}
+
+/** Check whether the user still has a makeup checkin quota left this week (counted by when the makeup was made) */
+export async function getMakeupQuota(userId: string, roomId: string): Promise<{ used: number; remaining: number }> {
+  const weekStart = getWeekStart(getTodayDate())
+  const { data, error } = await supabase
+    .from('checkins')
+    .select('created_at')
+    .eq('user_id', userId)
+    .eq('room_id', roomId)
+    .eq('is_makeup', true)
+
+  // 查询失败时按「已用完」处理，宁可少给机会也不超额
+  if (error) return { used: MAKEUP_QUOTA_PER_WEEK, remaining: 0 }
+
+  const usedThisWeek = (data || []).filter(c => getWeekStart(toDateString(c.created_at)) === weekStart).length
+  return { used: usedThisWeek, remaining: Math.max(0, MAKEUP_QUOTA_PER_WEEK - usedThisWeek) }
+}
+
 /** Get today's checkin count and timestamps for a user */
 export async function getTodayCheckins(userId: string, roomId: string): Promise<Checkin[]> {
   const date = getTodayDate()
@@ -83,15 +127,18 @@ export async function getTodayCheckins(userId: string, roomId: string): Promise<
   return (data as Checkin[]) || []
 }
 
-/** Get ranking for a room */
-export async function getRanking(roomId: string): Promise<RankItem[]> {
+/** Get both the all-time ranking and the ranking of the given week (Monday key) in one round-trip */
+export async function getRankings(
+  roomId: string,
+  weekStart: string
+): Promise<{ all: RankItem[]; week: RankItem[] }> {
   // Get all users in the room
   const { data: users } = await supabase
     .from('users')
     .select('id, nickname, emoji')
     .eq('room_id', roomId)
 
-  if (!users || users.length === 0) return []
+  if (!users || users.length === 0) return { all: [], week: [] }
 
   // Get all checkins for the room
   const { data: checkins } = await supabase
@@ -100,19 +147,37 @@ export async function getRanking(roomId: string): Promise<RankItem[]> {
     .eq('room_id', roomId)
     .order('date', { ascending: false })
 
-  if (!checkins) return []
+  if (!checkins) return { all: [], week: [] }
 
-  // Build ranking
-  const checkinsPerUser = new Map<string, string[]>()
+  const weekRows = checkins.filter(c => getWeekStart(c.date) === weekStart)
+  const isCurrentWeek = weekStart === getWeekStart(getTodayDate())
+
+  return {
+    all: buildRanking(users, checkins, calcStreakFromDates, true),
+    // 历史周不展示「今日已打卡」，避免与所选周的数据混淆
+    week: buildRanking(users, weekRows, calcMaxStreakFromDates, isCurrentWeek),
+  }
+}
+
+type RankUser = { id: string; nickname: string; emoji: string }
+type RankRow = { user_id: string; date: string; created_at: string }
+
+function buildRanking(
+  users: RankUser[],
+  rows: RankRow[],
+  streakOf: (dates: string[]) => number,
+  includeToday: boolean
+): RankItem[] {
+  const datesPerUser = new Map<string, string[]>()
   const todayTimesPerUser = new Map<string, string[]>()
 
   const today = getTodayDate()
-  for (const c of checkins) {
-    const list = checkinsPerUser.get(c.user_id) || []
+  for (const c of rows) {
+    const list = datesPerUser.get(c.user_id) || []
     list.push(c.date)
-    checkinsPerUser.set(c.user_id, list)
+    datesPerUser.set(c.user_id, list)
 
-    if (c.date === today) {
+    if (includeToday && c.date === today) {
       const times = todayTimesPerUser.get(c.user_id) || []
       times.push(c.created_at)
       todayTimesPerUser.set(c.user_id, times)
@@ -120,14 +185,14 @@ export async function getRanking(roomId: string): Promise<RankItem[]> {
   }
 
   const ranking: RankItem[] = users.map(u => {
-    const dates = checkinsPerUser.get(u.id) || []
+    const dates = datesPerUser.get(u.id) || []
     const todayTimes = (todayTimesPerUser.get(u.id) || []).sort()
     return {
       user_id: u.id,
       nickname: u.nickname,
       emoji: u.emoji,
       total: dates.length,
-      streak: calcStreakFromDates(dates),
+      streak: streakOf(dates),
       checkedToday: todayTimes.length > 0,
       todayTimes,
     }
@@ -167,6 +232,23 @@ function calcStreakFromDates(dates: string[]): number {
     else break
   }
   return streak
+}
+
+/** Longest run of consecutive days within the given dates (used for weekly ranking) */
+function calcMaxStreakFromDates(dates: string[]): number {
+  if (dates.length === 0) return 0
+  const uniqueDates = [...new Set(dates)].sort()
+
+  let max = 1
+  let curr = 1
+  for (let i = 1; i < uniqueDates.length; i++) {
+    const prev = new Date(uniqueDates[i - 1])
+    const day = new Date(uniqueDates[i])
+    const diffDays = (day.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24)
+    curr = diffDays === 1 ? curr + 1 : 1
+    max = Math.max(max, curr)
+  }
+  return max
 }
 
 function getYesterdayDate(): string {
