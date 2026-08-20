@@ -1,3 +1,5 @@
+import type { LevelTitleId, StatusTitleId, TimeTitleId } from './types'
+
 const EMOJIS = ['💩', '🐶', '🐱', '🐼', '🦊', '🐸', '🐵', '🐷', '🐮', '🐔', '🦄', '🐙', '👻', '🤡', '🎃']
 
 export function randomEmoji(): string {
@@ -85,6 +87,16 @@ export function toDateString(isoTime: string): string {
   return new Date(isoTime).toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
 }
 
+/** Get the hour (0-23) of an ISO timestamp in Asia/Shanghai */
+export function getHour(isoTime: string): number {
+  return Number(new Date(isoTime).toLocaleString('sv-SE', { timeZone: 'Asia/Shanghai' }).slice(11, 13))
+}
+
+/** Number of days from one date string to another (both YYYY-MM-DD) */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((parseDate(to).getTime() - parseDate(from).getTime()) / 86400000)
+}
+
 const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 /** Format a date string as "MM-DD 周x" for display */
@@ -98,6 +110,81 @@ export function getMakeupCandidateDates(checkedDates: string[], lookbackDays = 1
   const today = getTodayDate()
   return Array.from({ length: lookbackDays }, (_, i) => shiftDate(today, -(i + 1)))
     .filter(date => !checkedSet.has(date))
+}
+
+/** 主线称号门槛，从高到低排列 */
+export const LEVEL_RULES: Array<{ id: LevelTitleId; total: number }> = [
+  { id: 'enlighten', total: 60 },
+  { id: 'dragon', total: 30 },
+  { id: 'legend', total: 25 },
+  { id: 'rocket', total: 20 },
+  { id: 'master', total: 15 },
+  { id: 'stable', total: 10 },
+  { id: 'punctual', total: 7 },
+  { id: 'warmup', total: 5 },
+  { id: 'pipe', total: 3 },
+  { id: 'rookie', total: 1 },
+]
+
+/** 连续中的支线称号，从高到低排列 */
+export const STREAK_RULES: Array<{ id: StatusTitleId; streak: number }> = [
+  { id: 'perpetual', streak: 14 },
+  { id: 'god', streak: 10 },
+  { id: 'unshakable', streak: 7 },
+  { id: 'iron', streak: 5 },
+  { id: 'combo3', streak: 3 },
+]
+
+/** 断更后的支线称号，按已断天数从多到少排列 */
+export const DROUGHT_RULES: Array<{ id: StatusTitleId; days: number }> = [
+  { id: 'fossil', days: 7 },
+  { id: 'cobweb', days: 5 },
+  { id: 'dormant', days: 3 },
+  { id: 'drought', days: 2 },
+]
+
+/** 时段称号的区间（Asia/Shanghai 小时），from > to 表示跨天 */
+export const TIME_BUCKETS: Array<{ id: TimeTitleId; from: number; to: number }> = [
+  { id: 'morning', from: 5, to: 8 },
+  { id: 'paid', from: 9, to: 11 },
+  { id: 'afternoon', from: 12, to: 17 },
+  { id: 'night', from: 18, to: 22 },
+  { id: 'midnight', from: 23, to: 4 },
+]
+
+/** 打卡次数太少时时段分布没有代表性，不给时段称号 */
+const TIME_TITLE_MIN_CHECKINS = 5
+
+/** 主线称号：累计次数达到的最高档 */
+export function getLevelTitle(total: number): LevelTitleId | null {
+  return LEVEL_RULES.find(r => total >= r.total)?.id ?? null
+}
+
+/** 支线称号：连续中给正称号，断更 2 天以上给负称号，从未打卡则没有称号 */
+export function getStatusTitle(streak: number, daysSinceLast: number | null): StatusTitleId | null {
+  if (daysSinceLast === null) return null
+  if (daysSinceLast >= 2) return DROUGHT_RULES.find(r => daysSinceLast >= r.days)?.id ?? null
+  return STREAK_RULES.find(r => streak >= r.streak)?.id ?? null
+}
+
+/** 时段称号：历史打卡时间点落得最多的那个区间 */
+export function getTimeTitle(hours: number[]): TimeTitleId | null {
+  if (hours.length < TIME_TITLE_MIN_CHECKINS) return null
+
+  const counts = new Map<TimeTitleId, number>()
+  for (const hour of hours) {
+    const bucket = TIME_BUCKETS.find(b => (
+      b.from > b.to ? hour >= b.from || hour <= b.to : hour >= b.from && hour <= b.to
+    ))
+    if (bucket) counts.set(bucket.id, (counts.get(bucket.id) ?? 0) + 1)
+  }
+
+  // 并列时取 TIME_BUCKETS 中靠前的，保证结果稳定
+  let best = TIME_BUCKETS[0].id
+  for (const { id } of TIME_BUCKETS) {
+    if ((counts.get(id) ?? 0) > (counts.get(best) ?? 0)) best = id
+  }
+  return best
 }
 
 const STORAGE_KEY_PREFIX = 'poop_user_'
@@ -118,6 +205,17 @@ export function setLocalUser(roomId: string, user: { id: string; nickname: strin
 
 export function clearLocalUser(roomId: string) {
   localStorage.removeItem(STORAGE_KEY_PREFIX + roomId)
+}
+
+/** 已读过的更新日志版本，跨房间共享（更新内容与房间无关） */
+const SEEN_UPDATE_KEY = 'poop_seen_update'
+
+export function getSeenUpdateVersion(): string | null {
+  return localStorage.getItem(SEEN_UPDATE_KEY)
+}
+
+export function setSeenUpdateVersion(version: string) {
+  localStorage.setItem(SEEN_UPDATE_KEY, version)
 }
 
 /** Generate an 8-char recovery code (uppercase letters + digits) */

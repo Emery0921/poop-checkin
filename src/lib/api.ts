@@ -1,5 +1,15 @@
 import { supabase } from './supabase'
-import { getTodayDate, generateRecoveryCode, getWeekStart, toDateString } from './utils'
+import {
+  getTodayDate,
+  generateRecoveryCode,
+  getWeekStart,
+  toDateString,
+  getLevelTitle,
+  getStatusTitle,
+  getTimeTitle,
+  daysBetween,
+  getHour,
+} from './utils'
 import type { User, Checkin, RankItem } from './types'
 
 /** 每周补卡机会上限 */
@@ -152,10 +162,18 @@ export async function getRankings(
   const weekRows = checkins.filter(c => getWeekStart(c.date) === weekStart)
   const isCurrentWeek = weekStart === getWeekStart(getTodayDate())
 
+  const all = buildRanking(users, checkins, calcStreakFromDates, true)
+  // 称号按总榜数据计算，周榜沿用同一份，避免切到周榜时称号被「重置」
+  const titleMap = new Map(all.map(r => [
+    r.user_id,
+    { levelTitle: r.levelTitle, statusTitle: r.statusTitle, timeTitle: r.timeTitle },
+  ]))
+
   return {
-    all: buildRanking(users, checkins, calcStreakFromDates, true),
+    all,
     // 历史周不展示「今日已打卡」，避免与所选周的数据混淆
-    week: buildRanking(users, weekRows, calcMaxStreakFromDates, isCurrentWeek),
+    week: buildRanking(users, weekRows, calcMaxStreakFromDates, isCurrentWeek)
+      .map(r => ({ ...r, ...titleMap.get(r.user_id) })),
   }
 }
 
@@ -170,12 +188,17 @@ function buildRanking(
 ): RankItem[] {
   const datesPerUser = new Map<string, string[]>()
   const todayTimesPerUser = new Map<string, string[]>()
+  const hoursPerUser = new Map<string, number[]>()
 
   const today = getTodayDate()
   for (const c of rows) {
     const list = datesPerUser.get(c.user_id) || []
     list.push(c.date)
     datesPerUser.set(c.user_id, list)
+
+    const hours = hoursPerUser.get(c.user_id) || []
+    hours.push(getHour(c.created_at))
+    hoursPerUser.set(c.user_id, hours)
 
     if (includeToday && c.date === today) {
       const times = todayTimesPerUser.get(c.user_id) || []
@@ -187,14 +210,21 @@ function buildRanking(
   const ranking: RankItem[] = users.map(u => {
     const dates = datesPerUser.get(u.id) || []
     const todayTimes = (todayTimesPerUser.get(u.id) || []).sort()
+    const total = dates.length
+    const streak = streakOf(dates)
+    // YYYY-MM-DD 字典序等于时间序，直接取最大值即最近一次打卡
+    const lastDate = total > 0 ? dates.reduce((a, b) => (b > a ? b : a)) : null
     return {
       user_id: u.id,
       nickname: u.nickname,
       emoji: u.emoji,
-      total: dates.length,
-      streak: streakOf(dates),
+      total,
+      streak,
       checkedToday: todayTimes.length > 0,
       todayTimes,
+      levelTitle: getLevelTitle(total),
+      statusTitle: getStatusTitle(streak, lastDate ? daysBetween(lastDate, today) : null),
+      timeTitle: getTimeTitle(hoursPerUser.get(u.id) || []),
     }
   })
 

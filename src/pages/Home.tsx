@@ -2,16 +2,18 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { NicknameModal } from '../components/NicknameModal'
 import { RankingList } from '../components/RankingList'
 import { Calendar } from '../components/Calendar'
-import { Achievements } from '../components/Achievements'
+import { TitleGallery } from '../components/TitleGallery'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { MakeupModal } from '../components/MakeupModal'
-import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getTodayDate, getWeekStart, getRecentWeekStarts, formatWeekLabel } from '../lib/utils'
+import { UpdateModal, UPDATE_VERSION } from '../components/UpdateModal'
+import { TitleTag, formatTitleText } from '../components/TitleTag'
+import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getTodayDate, getWeekStart, getRecentWeekStarts, formatWeekLabel, getSeenUpdateVersion, setSeenUpdateVersion } from '../lib/utils'
 import * as api from '../lib/api'
 import type { RankItem, Checkin } from '../lib/types'
 
 const UNDO_DURATION = 180 // 3 minutes in seconds
 
-const RANK_MODE_OPTIONS = [['week', '本周榜'], ['all', '总榜']] as const
+const RANK_MODE_OPTIONS = [['week', '周榜'], ['all', '总榜']] as const
 
 const WEEK_OPTIONS = getRecentWeekStarts()
 
@@ -22,7 +24,10 @@ function getRoomId(): string {
 
 export function Home() {
   const roomId = getRoomId()
-  const [user, setUser] = useState(getLocalUser(roomId))
+  const storedUser = getLocalUser(roomId)
+  const [user, setUser] = useState(storedUser)
+  // 新用户不需要看更新日志，只有已加入过的老用户在版本变化后弹一次
+  const [showUpdate, setShowUpdate] = useState(() => !!storedUser && getSeenUpdateVersion() !== UPDATE_VERSION)
   const [todayCheckins, setTodayCheckins] = useState<Checkin[]>([])
   const [ranking, setRanking] = useState<RankItem[]>([])
   const [weekRanking, setWeekRanking] = useState<RankItem[]>([])
@@ -31,7 +36,7 @@ export function Home() {
   const [myDates, setMyDates] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [animating, setAnimating] = useState(false)
-  const [tab, setTab] = useState<'rank' | 'calendar' | 'achievements'>('rank')
+  const [tab, setTab] = useState<'rank' | 'calendar' | 'titles'>('rank')
   const [showConfirm, setShowConfirm] = useState(false)
   const [lastCheckinId, setLastCheckinId] = useState<string | null>(null)
   const [undoCountdown, setUndoCountdown] = useState(0)
@@ -73,6 +78,7 @@ export function Home() {
       const localUser = { id: newUser.id, nickname, emoji, recoveryCode: newUser.recovery_code }
       setLocalUser(roomId, localUser)
       setUser(localUser)
+      setSeenUpdateVersion(UPDATE_VERSION)
       setShowRecoveryCode(true)
     } finally {
       setLoading(false)
@@ -186,8 +192,10 @@ export function Home() {
 
   const handleShare = () => {
     const url = window.location.origin + window.location.pathname + '?room=' + roomId
-    const myRank = ranking.findIndex(r => r.user_id === user?.id) + 1
-    const text = `💩 我在「拉屎打卡」已打卡${myDates.length}次${myRank > 0 ? `，排名第${myRank}` : ''}！快来一起打卡吧 👉 ${url}`
+    const myIdx = ranking.findIndex(r => r.user_id === user?.id)
+    const me = myIdx >= 0 ? ranking[myIdx] : null
+    const titleText = me ? formatTitleText([me.levelTitle, me.statusTitle]) : ''
+    const text = `💩 我已打卡${myDates.length}次${myIdx >= 0 ? `，排名第${myIdx + 1}` : ''}${titleText ? `，当前称号：${titleText}` : ''}！快来一起打卡吧 👉 ${url}`
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text)
       alert('已复制分享文案到剪贴板！粘贴到群里即可~')
@@ -199,6 +207,11 @@ export function Home() {
     navigator.clipboard.writeText(user.recoveryCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleCloseUpdate = () => {
+    setSeenUpdateVersion(UPDATE_VERSION)
+    setShowUpdate(false)
   }
 
   if (!user) {
@@ -230,9 +243,18 @@ export function Home() {
           {todayCheckins.length > 0 ? `今日已打卡 ${todayCheckins.length} 次 💪` : '点击打卡'}
         </p>
         {myStats && (
-          <p className="text-xs text-gray-400 mt-1">
-            累计 {myStats.total} 次 · 连续 {myStats.streak} 天
-          </p>
+          <>
+            <p className="text-xs text-gray-400 mt-1">
+              累计 {myStats.total} 次 · 连续 {myStats.streak} 天
+            </p>
+            {(myStats.levelTitle || myStats.statusTitle || myStats.timeTitle) && (
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-1">
+                <TitleTag title={myStats.levelTitle} />
+                <TitleTag title={myStats.statusTitle} />
+                <TitleTag title={myStats.timeTitle} />
+              </div>
+            )}
+          </>
         )}
         <button
           onClick={handleMakeupClick}
@@ -260,7 +282,7 @@ export function Home() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-        {([['rank', '🏆 排行'], ['calendar', '📅 日历'], ['achievements', '🎖️ 成就']] as const).map(([key, label]) => (
+        {([['rank', '🏆 排行'], ['calendar', '📅 日历'], ['titles', '🎖️ 称号']] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -306,7 +328,7 @@ export function Home() {
         </div>
       )}
       {tab === 'calendar' && <Calendar dates={myDates} />}
-      {tab === 'achievements' && <Achievements total={myStats?.total ?? 0} streak={myStats?.streak ?? 0} />}
+      {tab === 'titles' && <TitleGallery myStats={myStats} />}
 
       {/* Share Button */}
       <button
@@ -364,6 +386,9 @@ export function Home() {
           loading={loading}
         />
       )}
+
+      {/* Update Log Modal */}
+      {showUpdate && <UpdateModal onClose={handleCloseUpdate} />}
     </div>
   )
 }

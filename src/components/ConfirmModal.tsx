@@ -5,7 +5,8 @@ interface Props {
   children?: React.ReactNode
   cancelText?: string
   confirmText: string
-  onCancel: () => void
+  /** 不传则只渲染确认按钮，用于纯告知类弹窗 */
+  onCancel?: () => void
   onConfirm: () => void
 }
 
@@ -28,12 +29,14 @@ export function ConfirmModal({
         {description && <p className="text-sm text-gray-500 mb-6">{description}</p>}
         {children}
         <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
-          >
-            {cancelText}
-          </button>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+            >
+              {cancelText}
+            </button>
+          )}
           <button
             onClick={onConfirm}
             className="flex-1 py-3 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-600 transition-colors"
