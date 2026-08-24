@@ -143,20 +143,23 @@ export async function getRankings(
   weekStart: string
 ): Promise<{ all: RankItem[]; week: RankItem[] }> {
   // Get all users in the room
-  const { data: users } = await supabase
+  const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id, nickname, emoji')
     .eq('room_id', roomId)
 
+  // 请求失败必须抛出，否则调用方会把「拉取失败」当成「房间是空的」而清空榜单
+  if (usersError) throw usersError
   if (!users || users.length === 0) return { all: [], week: [] }
 
   // Get all checkins for the room
-  const { data: checkins } = await supabase
+  const { data: checkins, error: checkinsError } = await supabase
     .from('checkins')
     .select('user_id, date, created_at')
     .eq('room_id', roomId)
     .order('date', { ascending: false })
 
+  if (checkinsError) throw checkinsError
   if (!checkins) return { all: [], week: [] }
 
   const weekRows = checkins.filter(c => getWeekStart(c.date) === weekStart)

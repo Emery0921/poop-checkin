@@ -64,6 +64,19 @@ export function Home() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  // 微信里切走再切回来是最常见的场景，回到前台自动拉一次，用户不用感知「刷新」
+  useEffect(
+    () => {
+      const handleVisibilityChange = () => {
+        // 后台静默刷新，失败不打扰用户，下次切回来还会再试
+        if (document.visibilityState === 'visible') loadData().catch(() => {})
+      }
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    },
+    [loadData]
+  )
+
   // Cleanup undo timer on unmount
   useEffect(() => {
     return () => {
