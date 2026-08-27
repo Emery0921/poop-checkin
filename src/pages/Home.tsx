@@ -38,6 +38,7 @@ export function Home() {
   const [animating, setAnimating] = useState(false)
   const [tab, setTab] = useState<'rank' | 'calendar' | 'titles'>('rank')
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showSharePrompt, setShowSharePrompt] = useState(false)
   const [lastCheckinId, setLastCheckinId] = useState<string | null>(null)
   const [undoCountdown, setUndoCountdown] = useState(0)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
@@ -141,7 +142,9 @@ export function Home() {
           return prev - 1
         })
       }, 1000)
-      await loadData()
+      // 刷新失败不影响打卡结果，不能报成「打卡失败」
+      await loadData().catch(() => {})
+      setShowSharePrompt(true)
     } catch (err) {
       // 用户已被删除（外键约束失败），清空本地身份重新走注册流程
       if (api.isForeignKeyViolation(err)) {
@@ -213,6 +216,11 @@ export function Home() {
       navigator.clipboard.writeText(text)
       alert('已复制分享文案到剪贴板！粘贴到群里即可~')
     }
+  }
+
+  const handleConfirmShare = () => {
+    setShowSharePrompt(false)
+    handleShare()
   }
 
   const handleCopyRecoveryCode = () => {
@@ -385,6 +393,19 @@ export function Home() {
           confirmText="确认打卡"
           onCancel={() => setShowConfirm(false)}
           onConfirm={handleConfirmCheckin}
+        />
+      )}
+
+      {/* Share Prompt Modal */}
+      {showSharePrompt && (
+        <ConfirmModal
+          icon="🎉"
+          title="打卡成功！"
+          description="要把战绩分享到群里吗？"
+          cancelText="不用了"
+          confirmText="分享到群"
+          onCancel={() => setShowSharePrompt(false)}
+          onConfirm={handleConfirmShare}
         />
       )}
 
