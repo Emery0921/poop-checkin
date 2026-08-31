@@ -1,3 +1,4 @@
+import { CALENDAR_WEEKDAY_LABELS } from '../lib/dicts'
 import { getTodayDate } from '../lib/utils'
 
 interface Props {
@@ -13,7 +14,6 @@ export function Calendar({ dates }: Props) {
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay()
 
   const dateSet = new Set(dates)
-  const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
   const cells: (number | null)[] = []
   for (let i = 0; i < firstDayOfWeek; i++) cells.push(null)
@@ -25,7 +25,7 @@ export function Calendar({ dates }: Props) {
         {year}年{month}月
       </h3>
       <div className="grid grid-cols-7 gap-1 text-center text-xs">
-        {weekDays.map(d => (
+        {CALENDAR_WEEKDAY_LABELS.map(d => (
           <div key={d} className="text-gray-400 py-1">{d}</div>
         ))}
         {cells.map((day, i) => {

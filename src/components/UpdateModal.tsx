@@ -1,17 +1,5 @@
+import { UPDATE_ITEMS } from '../lib/dicts'
 import { ConfirmModal } from './ConfirmModal'
-
-/**
- * 更新日志版本号。有需要告知用户的改动时改这里，
- * 与 localStorage 里已读的版本不一致时，老用户进入会弹一次。
- */
-export const UPDATE_VERSION = '2026-08-20'
-
-const UPDATE_ITEMS = [
-  '新增称号系统：累计次数、连续天数、常打卡时段各一个称号，自动评定',
-  '连续两天没打卡会挂上「断更」类称号，打回来就恢复',
-  '「成就」页签换成「称号图鉴」，可以查看每个称号的解锁条件',
-  '排行榜里也能看到别人的称号',
-]
 
 interface Props {
   onClose: () => void

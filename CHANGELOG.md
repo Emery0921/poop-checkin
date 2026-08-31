@@ -6,6 +6,16 @@
 
 暂无。
 
+## 2026-08-31 今日动态 + 打卡随机文案 + 常量集中到 dicts
+
+- 新增「⚡ 动态」页签：把全房间今天的打卡按时间倒序排成一条流水，展示时间点、头像、昵称，自己那条高亮
+- 今天最早的一次打卡挂「🐓 今日首拉」标签；22 点后给当天最新的一条挂「🦉 今日收尾」标签（白天的「最后一个」只是「最新一条」，没有信息量所以不显示）
+- 打卡成功弹窗的标题改为从 8 句吐槽里随机取一句，每次打卡换一句
+- 动态页签复用已有的排行榜数据，没有新增任何请求或接口改动
+- 新增 `src/lib/dicts.ts`，把全仓常量、选项、枚举与称号元数据集中到一处；枚举用 `as const` + 派生联合类型（项目开启了 `erasableSyntaxOnly`，不能用 TS `enum`）
+- `TitleTag.tsx` 只保留组件导出，`formatTitleText` 移入 `utils.ts`，`TITLES` 移入 `dicts.ts`，消除了两处 `only-export-components` 警告
+- 重命名以避免公共文件里的命名冲突：`STORAGE_KEY_PREFIX` → `USER_STORAGE_KEY_PREFIX`、`CATEGORY_OPTIONS/HINTS` → `TITLE_CATEGORY_*`、`SIZE_CLASS` → `TITLE_TAG_SIZE_CLASS`；localStorage 的 key 字符串保持不变，不影响老用户身份与已读状态
+
 ## 2026-08-27 打卡成功后提示分享到群
 
 - 打卡成功后弹窗询问是否分享到群，确认后走原有的复制分享文案逻辑，取消则直接关闭；底部「分享到群」按钮保留

@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { MAKEUP_QUOTA_PER_WEEK } from './dicts'
 import {
   getTodayDate,
   generateRecoveryCode,
@@ -11,9 +12,6 @@ import {
   getHour,
 } from './utils'
 import type { User, Checkin, RankItem } from './types'
-
-/** 每周补卡机会上限 */
-export const MAKEUP_QUOTA_PER_WEEK = 1
 
 /** 本周补卡机会已用完 */
 export class MakeupQuotaError extends Error {

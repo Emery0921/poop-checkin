@@ -1,4 +1,5 @@
 import type { RankItem, TitleId } from '../lib/types'
+import { MEDAL_MAP } from '../lib/dicts'
 import { formatTime } from '../lib/utils'
 import { TitleTag } from './TitleTag'
 
@@ -11,8 +12,6 @@ export function RankingList({ ranking, currentUserId }: Props) {
   if (ranking.length === 0) {
     return <p className="text-center text-gray-400 py-8">还没有人打卡，快来第一个！</p>
   }
-
-  const medalMap: Record<number, string> = { 0: '🥇', 1: '🥈', 2: '🥉' }
 
   return (
     <div className="space-y-2">
@@ -30,7 +29,7 @@ export function RankingList({ ranking, currentUserId }: Props) {
             }`}
           >
             <span className="text-lg w-8 text-center">
-              {medalMap[idx] ?? <span className="text-gray-400 text-sm">{idx + 1}</span>}
+              {MEDAL_MAP[idx] ?? <span className="text-gray-400 text-sm">{idx + 1}</span>}
             </span>
             <span className="text-2xl">{item.emoji}</span>
             <div className="flex-1 text-left">

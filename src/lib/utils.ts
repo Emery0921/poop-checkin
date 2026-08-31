@@ -1,6 +1,19 @@
-import type { LevelTitleId, StatusTitleId, TimeTitleId } from './types'
-
-const EMOJIS = ['💩', '🐶', '🐱', '🐼', '🦊', '🐸', '🐵', '🐷', '🐮', '🐔', '🦄', '🐙', '👻', '🤡', '🎃']
+import type { LevelTitleId, StatusTitleId, TimeTitleId, TitleId } from './types'
+import {
+  DROUGHT_FROM_DAYS,
+  DROUGHT_RULES,
+  EMOJIS,
+  LEVEL_RULES,
+  MAKEUP_LOOKBACK_DAYS,
+  RECENT_WEEK_COUNT,
+  SEEN_UPDATE_KEY,
+  STREAK_RULES,
+  TIME_BUCKETS,
+  TIME_TITLE_MIN_CHECKINS,
+  TITLES,
+  USER_STORAGE_KEY_PREFIX,
+  WEEKDAY_LABELS,
+} from './dicts'
 
 export function randomEmoji(): string {
   return EMOJIS[Math.floor(Math.random() * EMOJIS.length)]
@@ -69,7 +82,7 @@ export function getWeekStart(dateStr: string): string {
 }
 
 /** Get the Monday keys of the most recent weeks, newest first (including the current week) */
-export function getRecentWeekStarts(count = 8): string[] {
+export function getRecentWeekStarts(count = RECENT_WEEK_COUNT): string[] {
   const thisWeek = getWeekStart(getTodayDate())
   return Array.from({ length: count }, (_, i) => shiftDate(thisWeek, -7 * i))
 }
@@ -97,63 +110,18 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((parseDate(to).getTime() - parseDate(from).getTime()) / 86400000)
 }
 
-const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-
 /** Format a date string as "MM-DD 周x" for display */
 export function formatDateWithWeekday(dateStr: string): string {
   return `${dateStr.slice(5)} ${WEEKDAY_LABELS[parseDate(dateStr).getUTCDay()]}`
 }
 
 /** Get all dates (YYYY-MM-DD) that are in the past relative to today and not yet checked in, within a lookback window */
-export function getMakeupCandidateDates(checkedDates: string[], lookbackDays = 14): string[] {
+export function getMakeupCandidateDates(checkedDates: string[], lookbackDays = MAKEUP_LOOKBACK_DAYS): string[] {
   const checkedSet = new Set(checkedDates)
   const today = getTodayDate()
   return Array.from({ length: lookbackDays }, (_, i) => shiftDate(today, -(i + 1)))
     .filter(date => !checkedSet.has(date))
 }
-
-/** 主线称号门槛，从高到低排列 */
-export const LEVEL_RULES: Array<{ id: LevelTitleId; total: number }> = [
-  { id: 'enlighten', total: 60 },
-  { id: 'dragon', total: 30 },
-  { id: 'legend', total: 25 },
-  { id: 'rocket', total: 20 },
-  { id: 'master', total: 15 },
-  { id: 'stable', total: 10 },
-  { id: 'punctual', total: 7 },
-  { id: 'warmup', total: 5 },
-  { id: 'pipe', total: 3 },
-  { id: 'rookie', total: 1 },
-]
-
-/** 连续中的支线称号，从高到低排列 */
-export const STREAK_RULES: Array<{ id: StatusTitleId; streak: number }> = [
-  { id: 'perpetual', streak: 14 },
-  { id: 'god', streak: 10 },
-  { id: 'unshakable', streak: 7 },
-  { id: 'iron', streak: 5 },
-  { id: 'combo3', streak: 3 },
-]
-
-/** 断更后的支线称号，按已断天数从多到少排列 */
-export const DROUGHT_RULES: Array<{ id: StatusTitleId; days: number }> = [
-  { id: 'fossil', days: 7 },
-  { id: 'cobweb', days: 5 },
-  { id: 'dormant', days: 3 },
-  { id: 'drought', days: 2 },
-]
-
-/** 时段称号的区间（Asia/Shanghai 小时），from > to 表示跨天 */
-export const TIME_BUCKETS: Array<{ id: TimeTitleId; from: number; to: number }> = [
-  { id: 'morning', from: 5, to: 8 },
-  { id: 'paid', from: 9, to: 11 },
-  { id: 'afternoon', from: 12, to: 17 },
-  { id: 'night', from: 18, to: 22 },
-  { id: 'midnight', from: 23, to: 4 },
-]
-
-/** 打卡次数太少时时段分布没有代表性，不给时段称号 */
-const TIME_TITLE_MIN_CHECKINS = 5
 
 /** 主线称号：累计次数达到的最高档 */
 export function getLevelTitle(total: number): LevelTitleId | null {
@@ -163,7 +131,7 @@ export function getLevelTitle(total: number): LevelTitleId | null {
 /** 支线称号：连续中给正称号，断更 2 天以上给负称号，从未打卡则没有称号 */
 export function getStatusTitle(streak: number, daysSinceLast: number | null): StatusTitleId | null {
   if (daysSinceLast === null) return null
-  if (daysSinceLast >= 2) return DROUGHT_RULES.find(r => daysSinceLast >= r.days)?.id ?? null
+  if (daysSinceLast >= DROUGHT_FROM_DAYS) return DROUGHT_RULES.find(r => daysSinceLast >= r.days)?.id ?? null
   return STREAK_RULES.find(r => streak >= r.streak)?.id ?? null
 }
 
@@ -187,10 +155,8 @@ export function getTimeTitle(hours: number[]): TimeTitleId | null {
   return best
 }
 
-const STORAGE_KEY_PREFIX = 'poop_user_'
-
 export function getLocalUser(roomId: string): { id: string; nickname: string; emoji: string; recoveryCode: string } | null {
-  const raw = localStorage.getItem(STORAGE_KEY_PREFIX + roomId)
+  const raw = localStorage.getItem(USER_STORAGE_KEY_PREFIX + roomId)
   if (!raw) return null
   try {
     return JSON.parse(raw)
@@ -200,15 +166,12 @@ export function getLocalUser(roomId: string): { id: string; nickname: string; em
 }
 
 export function setLocalUser(roomId: string, user: { id: string; nickname: string; emoji: string; recoveryCode: string }) {
-  localStorage.setItem(STORAGE_KEY_PREFIX + roomId, JSON.stringify(user))
+  localStorage.setItem(USER_STORAGE_KEY_PREFIX + roomId, JSON.stringify(user))
 }
 
 export function clearLocalUser(roomId: string) {
-  localStorage.removeItem(STORAGE_KEY_PREFIX + roomId)
+  localStorage.removeItem(USER_STORAGE_KEY_PREFIX + roomId)
 }
-
-/** 已读过的更新日志版本，跨房间共享（更新内容与房间无关） */
-const SEEN_UPDATE_KEY = 'poop_seen_update'
 
 export function getSeenUpdateVersion(): string | null {
   return localStorage.getItem(SEEN_UPDATE_KEY)
@@ -226,4 +189,12 @@ export function generateRecoveryCode(): string {
     code += chars[Math.floor(Math.random() * chars.length)]
   }
   return code
+}
+
+/** 把若干称号拼成纯文本（分享文案用），如「🏆 排便传奇 · 🔥 铁打作息」 */
+export function formatTitleText(titles: Array<TitleId | null>): string {
+  return titles
+    .filter((t): t is TitleId => t !== null)
+    .map(t => `${TITLES[t].icon} ${TITLES[t].name}`)
+    .join(' · ')
 }

@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { NicknameModal } from '../components/NicknameModal'
 import { RankingList } from '../components/RankingList'
+import { TodayFeed } from '../components/TodayFeed'
 import { Calendar } from '../components/Calendar'
 import { TitleGallery } from '../components/TitleGallery'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { MakeupModal } from '../components/MakeupModal'
-import { UpdateModal, UPDATE_VERSION } from '../components/UpdateModal'
-import { TitleTag, formatTitleText } from '../components/TitleTag'
-import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getTodayDate, getWeekStart, getRecentWeekStarts, formatWeekLabel, getSeenUpdateVersion, setSeenUpdateVersion } from '../lib/utils'
+import { UpdateModal } from '../components/UpdateModal'
+import { TitleTag } from '../components/TitleTag'
+import type { RankMode, TabKey } from '../lib/dicts'
+import { CHEERS, RANK_MODE_OPTIONS, TAB_OPTIONS, UNDO_DURATION, UPDATE_VERSION } from '../lib/dicts'
+import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getTodayDate, getWeekStart, getRecentWeekStarts, formatWeekLabel, formatTitleText, getSeenUpdateVersion, setSeenUpdateVersion } from '../lib/utils'
 import * as api from '../lib/api'
 import type { RankItem, Checkin } from '../lib/types'
-
-const UNDO_DURATION = 180 // 3 minutes in seconds
-
-const RANK_MODE_OPTIONS = [['week', '周榜'], ['all', '总榜']] as const
 
 const WEEK_OPTIONS = getRecentWeekStarts()
 
@@ -31,14 +30,15 @@ export function Home() {
   const [todayCheckins, setTodayCheckins] = useState<Checkin[]>([])
   const [ranking, setRanking] = useState<RankItem[]>([])
   const [weekRanking, setWeekRanking] = useState<RankItem[]>([])
-  const [rankMode, setRankMode] = useState<'week' | 'all'>('week')
+  const [rankMode, setRankMode] = useState<RankMode>('week')
   const [weekStart, setWeekStart] = useState(() => getWeekStart(getTodayDate()))
   const [myDates, setMyDates] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [animating, setAnimating] = useState(false)
-  const [tab, setTab] = useState<'rank' | 'calendar' | 'titles'>('rank')
+  const [tab, setTab] = useState<TabKey>('rank')
   const [showConfirm, setShowConfirm] = useState(false)
-  const [showSharePrompt, setShowSharePrompt] = useState(false)
+  // 存住这次打卡随机到的那句吐槽，非空即代表分享询问弹窗打开
+  const [shareCheer, setShareCheer] = useState<string | null>(null)
   const [lastCheckinId, setLastCheckinId] = useState<string | null>(null)
   const [undoCountdown, setUndoCountdown] = useState(0)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
@@ -144,7 +144,7 @@ export function Home() {
       }, 1000)
       // 刷新失败不影响打卡结果，不能报成「打卡失败」
       await loadData().catch(() => {})
-      setShowSharePrompt(true)
+      setShareCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)])
     } catch (err) {
       // 用户已被删除（外键约束失败），清空本地身份重新走注册流程
       if (api.isForeignKeyViolation(err)) {
@@ -219,7 +219,7 @@ export function Home() {
   }
 
   const handleConfirmShare = () => {
-    setShowSharePrompt(false)
+    setShareCheer(null)
     handleShare()
   }
 
@@ -303,7 +303,7 @@ export function Home() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-        {([['rank', '🏆 排行'], ['calendar', '📅 日历'], ['titles', '🎖️ 称号']] as const).map(([key, label]) => (
+        {TAB_OPTIONS.map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -348,6 +348,7 @@ export function Home() {
           <RankingList ranking={rankMode === 'week' ? weekRanking : ranking} currentUserId={user.id} />
         </div>
       )}
+      {tab === 'feed' && <TodayFeed ranking={ranking} currentUserId={user.id} />}
       {tab === 'calendar' && <Calendar dates={myDates} />}
       {tab === 'titles' && <TitleGallery myStats={myStats} />}
 
@@ -397,14 +398,14 @@ export function Home() {
       )}
 
       {/* Share Prompt Modal */}
-      {showSharePrompt && (
+      {shareCheer && (
         <ConfirmModal
           icon="🎉"
-          title="打卡成功！"
+          title={shareCheer}
           description="要把战绩分享到群里吗？"
           cancelText="不用了"
           confirmText="分享到群"
-          onCancel={() => setShowSharePrompt(false)}
+          onCancel={() => setShareCheer(null)}
           onConfirm={handleConfirmShare}
         />
       )}
