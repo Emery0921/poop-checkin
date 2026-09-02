@@ -64,13 +64,12 @@ export const SEEN_UPDATE_KEY = 'poop_seen_update'
  * 更新日志版本号。有需要告知用户的改动时改这里，
  * 与 localStorage 里已读的版本不一致时，老用户进入会弹一次。
  */
-export const UPDATE_VERSION = '2026-08-31'
+export const UPDATE_VERSION = '2026-09-02'
 
 /** 更新日志弹窗里展示的条目，与版本号同步维护 */
 export const UPDATE_ITEMS = [
-  '新增「动态」页签，能看到今天群里谁几点打了卡',
-  '今天第一个打卡的人会挂上「🐓 今日首拉」标签',
-  '打卡成功的提示语现在每次都不一样',
+  '日历可以往前翻，看历史月份的打卡记录了',
+  '超过 5 天没打卡的人不再占排行榜位置，打一次就回来',
 ]
 
 /** 主线称号门槛，从高到低排列 */
@@ -118,6 +117,9 @@ export const TIME_TITLE_MIN_CHECKINS = 5
 
 /** 断更两天起算，达到该间隔才把连续称号换成断更称号 */
 export const DROUGHT_FROM_DAYS = 2
+
+/** 距上次打卡超过这个天数就不参与排名（自己除外，否则会看不到自己的数据） */
+export const HIDE_FROM_RANK_AFTER_DAYS = 5
 
 /** 称号展示信息：名称、图标、解锁条件文案、标签配色 */
 export const TITLES: Record<TitleId, { name: string; icon: string; desc: string; className: string }> = {

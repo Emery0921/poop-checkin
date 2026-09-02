@@ -164,17 +164,23 @@ export async function getRankings(
   const isCurrentWeek = weekStart === getWeekStart(getTodayDate())
 
   const all = buildRanking(users, checkins, calcStreakFromDates, true)
-  // 称号按总榜数据计算，周榜沿用同一份，避免切到周榜时称号被「重置」
-  const titleMap = new Map(all.map(r => [
+  // 称号和「距上次打卡天数」都按总榜数据计算，周榜沿用同一份：
+  // 周榜只有当周记录，自己算出来的天数在历史周里必然大于阈值，会把人全部误判成断更
+  const allTimeMeta = new Map(all.map(r => [
     r.user_id,
-    { levelTitle: r.levelTitle, statusTitle: r.statusTitle, timeTitle: r.timeTitle },
+    {
+      daysSinceLast: r.daysSinceLast,
+      levelTitle: r.levelTitle,
+      statusTitle: r.statusTitle,
+      timeTitle: r.timeTitle,
+    },
   ]))
 
   return {
     all,
     // 历史周不展示「今日已打卡」，避免与所选周的数据混淆
     week: buildRanking(users, weekRows, calcMaxStreakFromDates, isCurrentWeek)
-      .map(r => ({ ...r, ...titleMap.get(r.user_id) })),
+      .map(r => ({ ...r, ...allTimeMeta.get(r.user_id) })),
   }
 }
 
@@ -215,6 +221,7 @@ function buildRanking(
     const streak = streakOf(dates)
     // YYYY-MM-DD 字典序等于时间序，直接取最大值即最近一次打卡
     const lastDate = total > 0 ? dates.reduce((a, b) => (b > a ? b : a)) : null
+    const daysSinceLast = lastDate ? daysBetween(lastDate, today) : null
     return {
       user_id: u.id,
       nickname: u.nickname,
@@ -223,8 +230,9 @@ function buildRanking(
       streak,
       checkedToday: todayTimes.length > 0,
       todayTimes,
+      daysSinceLast,
       levelTitle: getLevelTitle(total),
-      statusTitle: getStatusTitle(streak, lastDate ? daysBetween(lastDate, today) : null),
+      statusTitle: getStatusTitle(streak, daysSinceLast),
       timeTitle: getTimeTitle(hoursPerUser.get(u.id) || []),
     }
   })

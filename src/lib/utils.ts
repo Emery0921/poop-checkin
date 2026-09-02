@@ -1,8 +1,9 @@
-import type { LevelTitleId, StatusTitleId, TimeTitleId, TitleId } from './types'
+import type { LevelTitleId, RankItem, StatusTitleId, TimeTitleId, TitleId } from './types'
 import {
   DROUGHT_FROM_DAYS,
   DROUGHT_RULES,
   EMOJIS,
+  HIDE_FROM_RANK_AFTER_DAYS,
   LEVEL_RULES,
   MAKEUP_LOOKBACK_DAYS,
   RECENT_WEEK_COUNT,
@@ -93,6 +94,12 @@ export function formatWeekLabel(weekStart: string): string {
   if (weekStart === thisWeek) return '本周'
   if (weekStart === shiftDate(thisWeek, -7)) return '上周'
   return `${weekStart.slice(5)} ~ ${shiftDate(weekStart, 6).slice(5)}`
+}
+
+/** Shift a YYYY-MM month key by the given number of months (negative = past) */
+export function shiftMonthKey(monthKey: string, months: number): string {
+  const [year, month] = monthKey.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1 + months, 1)).toISOString().slice(0, 7)
 }
 
 /** Convert an ISO timestamp to a YYYY-MM-DD date string in Asia/Shanghai */
@@ -197,4 +204,17 @@ export function formatTitleText(titles: Array<TitleId | null>): string {
     .filter((t): t is TitleId => t !== null)
     .map(t => `${TITLES[t].icon} ${TITLES[t].name}`)
     .join(' · ')
+}
+
+/**
+ * 过滤掉长期不打卡的人，让排行榜只留活跃用户。
+ * 自己无论断更多久都保留，否则会在榜上找不到自己、个人数据也跟着消失。
+ * 从未打卡过的人（daysSinceLast 为 null）不受影响，仍然展示。
+ */
+export function filterRankVisible(items: RankItem[], selfUserId?: string): RankItem[] {
+  return items.filter(item => (
+    item.user_id === selfUserId
+    || item.daysSinceLast === null
+    || item.daysSinceLast <= HIDE_FROM_RANK_AFTER_DAYS
+  ))
 }

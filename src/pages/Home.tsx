@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState } from 'react'
 import { NicknameModal } from '../components/NicknameModal'
 import { RankingList } from '../components/RankingList'
 import { TodayFeed } from '../components/TodayFeed'
@@ -8,11 +8,12 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { MakeupModal } from '../components/MakeupModal'
 import { UpdateModal } from '../components/UpdateModal'
 import { TitleTag } from '../components/TitleTag'
+import { useHomeData } from '../hooks/useHomeData'
+import { useUndoCountdown } from '../hooks/useUndoCountdown'
 import type { RankMode, TabKey } from '../lib/dicts'
 import { CHEERS, RANK_MODE_OPTIONS, TAB_OPTIONS, UNDO_DURATION, UPDATE_VERSION } from '../lib/dicts'
-import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getTodayDate, getWeekStart, getRecentWeekStarts, formatWeekLabel, formatTitleText, getSeenUpdateVersion, setSeenUpdateVersion } from '../lib/utils'
+import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getRecentWeekStarts, formatWeekLabel, formatTitleText, filterRankVisible, getSeenUpdateVersion, setSeenUpdateVersion } from '../lib/utils'
 import * as api from '../lib/api'
-import type { RankItem, Checkin } from '../lib/types'
 
 const WEEK_OPTIONS = getRecentWeekStarts()
 
@@ -27,63 +28,40 @@ export function Home() {
   const [user, setUser] = useState(storedUser)
   // 新用户不需要看更新日志，只有已加入过的老用户在版本变化后弹一次
   const [showUpdate, setShowUpdate] = useState(() => !!storedUser && getSeenUpdateVersion() !== UPDATE_VERSION)
-  const [todayCheckins, setTodayCheckins] = useState<Checkin[]>([])
-  const [ranking, setRanking] = useState<RankItem[]>([])
-  const [weekRanking, setWeekRanking] = useState<RankItem[]>([])
+  const {
+    ranking,
+    weekRanking,
+    todayCheckins,
+    myDates,
+    makeupRemaining,
+    weekStart,
+    setWeekStart,
+    reload,
+    addTodayCheckin,
+    removeTodayCheckin,
+    markMakeupExhausted,
+  } = useHomeData(user, roomId)
+  const {
+    pendingCheckinId,
+    countdown: undoCountdown,
+    start: startUndo,
+    clear: clearUndo,
+  } = useUndoCountdown(UNDO_DURATION)
   const [rankMode, setRankMode] = useState<RankMode>('week')
-  const [weekStart, setWeekStart] = useState(() => getWeekStart(getTodayDate()))
-  const [myDates, setMyDates] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [animating, setAnimating] = useState(false)
   const [tab, setTab] = useState<TabKey>('rank')
   const [showConfirm, setShowConfirm] = useState(false)
   // 存住这次打卡随机到的那句吐槽，非空即代表分享询问弹窗打开
   const [shareCheer, setShareCheer] = useState<string | null>(null)
-  const [lastCheckinId, setLastCheckinId] = useState<string | null>(null)
-  const [undoCountdown, setUndoCountdown] = useState(0)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showMakeup, setShowMakeup] = useState(false)
   const [makeupDate, setMakeupDate] = useState<string | null>(null)
-  const [makeupRemaining, setMakeupRemaining] = useState(0)
-  const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const loadData = useCallback(async () => {
-    if (!user) return
-    const [rankData, checkins, dates, quota] = await Promise.all([
-      api.getRankings(roomId, weekStart),
-      api.getTodayCheckins(user.id, roomId),
-      api.getCheckinDates(user.id, roomId),
-      api.getMakeupQuota(user.id, roomId),
-    ])
-    setRanking(rankData.all)
-    setWeekRanking(rankData.week)
-    setTodayCheckins(checkins)
-    setMyDates(dates)
-    setMakeupRemaining(quota.remaining)
-  }, [user, roomId, weekStart])
-
-  useEffect(() => { loadData() }, [loadData])
-
-  // 微信里切走再切回来是最常见的场景，回到前台自动拉一次，用户不用感知「刷新」
-  useEffect(
-    () => {
-      const handleVisibilityChange = () => {
-        // 后台静默刷新，失败不打扰用户，下次切回来还会再试
-        if (document.visibilityState === 'visible') loadData().catch(() => {})
-      }
-      document.addEventListener('visibilitychange', handleVisibilityChange)
-      return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-    },
-    [loadData]
-  )
-
-  // Cleanup undo timer on unmount
-  useEffect(() => {
-    return () => {
-      if (undoTimerRef.current) clearInterval(undoTimerRef.current)
-    }
-  }, [])
+  // 榜单只展示活跃用户，排名与分享文案里的名次都按过滤后的列表算
+  const visibleRanking = filterRankVisible(ranking, user?.id)
+  const visibleWeekRanking = filterRankVisible(weekRanking, user?.id)
 
   const handleJoin = async (nickname: string, emoji: string) => {
     setLoading(true)
@@ -124,26 +102,12 @@ export function Home() {
     setLoading(true)
     try {
       const checkin = await api.checkin(user.id, roomId)
-      setTodayCheckins(prev => [...prev, checkin])
+      addTodayCheckin(checkin)
       setAnimating(true)
       setTimeout(() => setAnimating(false), 1000)
-      // Start undo countdown
-      setLastCheckinId(checkin.id)
-      setUndoCountdown(UNDO_DURATION)
-      if (undoTimerRef.current) clearInterval(undoTimerRef.current)
-      undoTimerRef.current = setInterval(() => {
-        setUndoCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(undoTimerRef.current!)
-            undoTimerRef.current = null
-            setLastCheckinId(null)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
+      startUndo(checkin.id)
       // 刷新失败不影响打卡结果，不能报成「打卡失败」
-      await loadData().catch(() => {})
+      await reload().catch(() => {})
       setShareCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)])
     } catch (err) {
       // 用户已被删除（外键约束失败），清空本地身份重新走注册流程
@@ -159,17 +123,13 @@ export function Home() {
   }
 
   const handleUndo = async () => {
-    if (!lastCheckinId) return
+    if (!pendingCheckinId) return
     try {
-      await api.cancelCheckin(lastCheckinId)
-      setTodayCheckins(prev => prev.filter(c => c.id !== lastCheckinId))
-      setLastCheckinId(null)
-      setUndoCountdown(0)
-      if (undoTimerRef.current) {
-        clearInterval(undoTimerRef.current)
-        undoTimerRef.current = null
-      }
-      await loadData()
+      await api.cancelCheckin(pendingCheckinId)
+      removeTodayCheckin(pendingCheckinId)
+      clearUndo()
+      // 撤回已经成功，刷新失败不能报成「取消失败」
+      await reload().catch(() => {})
     } catch {
       alert('取消失败，可能已超时')
     }
@@ -188,7 +148,8 @@ export function Home() {
       await api.makeupCheckin(user.id, roomId, makeupDate)
       setShowMakeup(false)
       setMakeupDate(null)
-      await loadData()
+      // 补卡已经成功，刷新失败不能报成「补卡失败」
+      await reload().catch(() => {})
     } catch (err) {
       if (api.isForeignKeyViolation(err)) {
         clearLocalUser(roomId)
@@ -196,7 +157,7 @@ export function Home() {
       } else if (err instanceof api.MakeupQuotaError) {
         setShowMakeup(false)
         setMakeupDate(null)
-        setMakeupRemaining(0)
+        markMakeupExhausted()
         alert('本周补卡机会已用完，下周一恢复')
       } else {
         alert('补卡失败，请重试')
@@ -208,8 +169,8 @@ export function Home() {
 
   const handleShare = () => {
     const url = window.location.origin + window.location.pathname + '?room=' + roomId
-    const myIdx = ranking.findIndex(r => r.user_id === user?.id)
-    const me = myIdx >= 0 ? ranking[myIdx] : null
+    const myIdx = visibleRanking.findIndex(r => r.user_id === user?.id)
+    const me = myIdx >= 0 ? visibleRanking[myIdx] : null
     const titleText = me ? formatTitleText([me.levelTitle, me.statusTitle]) : ''
     const text = `💩 我已打卡${myDates.length}次${myIdx >= 0 ? `，排名第${myIdx + 1}` : ''}${titleText ? `，当前称号：${titleText}` : ''}！快来一起打卡吧 👉 ${url}`
     if (navigator.clipboard) {
@@ -287,7 +248,7 @@ export function Home() {
       </div>
 
       {/* Undo Banner */}
-      {lastCheckinId && undoCountdown > 0 && (
+      {pendingCheckinId && undoCountdown > 0 && (
         <div className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
           <span className="text-sm text-yellow-700">
             {undoMinutes}:{String(undoSeconds).padStart(2, '0')} 内可撤回
@@ -345,7 +306,7 @@ export function Home() {
               </select>
             )}
           </div>
-          <RankingList ranking={rankMode === 'week' ? weekRanking : ranking} currentUserId={user.id} />
+          <RankingList ranking={rankMode === 'week' ? visibleWeekRanking : visibleRanking} currentUserId={user.id} />
         </div>
       )}
       {tab === 'feed' && <TodayFeed ranking={ranking} currentUserId={user.id} />}

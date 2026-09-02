@@ -40,6 +40,8 @@ export interface RankItem {
   streak: number
   checkedToday: boolean
   todayTimes: string[] // ISO timestamps of today's checkins
+  /** 距上次打卡的天数，从未打卡为 null；始终按全部历史计算，周榜里也一致 */
+  daysSinceLast: number | null
   // 三个称号槽位始终按总榜数据计算，周榜里也保持一致
   levelTitle: LevelTitleId | null
   statusTitle: StatusTitleId | null
