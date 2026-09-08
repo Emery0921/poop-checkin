@@ -36,6 +36,7 @@ alter table checkins enable row level security;
 -- Allow anonymous access (anon key)
 create policy "Anyone can read users" on users for select using (true);
 create policy "Anyone can insert users" on users for insert with check (true);
+create policy "Anyone can update users" on users for update using (true); -- 修改昵称，缺这条更新会静默命中 0 行
 create policy "Anyone can read checkins" on checkins for select using (true);
 create policy "Anyone can insert checkins" on checkins for insert with check (true);
 create policy "Anyone can delete checkins" on checkins for delete using (true);

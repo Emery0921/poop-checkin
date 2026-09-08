@@ -3,6 +3,9 @@ import type { LevelTitleId, StatusTitleId, TimeTitleId, TitleId } from './types'
 /** 加入时随机分配的头像候选 */
 export const EMOJIS = ['💩', '🐶', '🐱', '🐼', '🦊', '🐸', '🐵', '🐷', '🐮', '🐔', '🦄', '🐙', '👻', '🤡', '🎃']
 
+/** 昵称最大长度 */
+export const NICKNAME_MAX_LENGTH = 12
+
 /** 打卡后可撤回的秒数 */
 export const UNDO_DURATION = 180
 
@@ -64,12 +67,12 @@ export const SEEN_UPDATE_KEY = 'poop_seen_update'
  * 更新日志版本号。有需要告知用户的改动时改这里，
  * 与 localStorage 里已读的版本不一致时，老用户进入会弹一次。
  */
-export const UPDATE_VERSION = '2026-09-02'
+export const UPDATE_VERSION = '2026-09-08'
 
 /** 更新日志弹窗里展示的条目，与版本号同步维护 */
 export const UPDATE_ITEMS = [
-  '日历可以往前翻，看历史月份的打卡记录了',
-  '超过 5 天没打卡的人不再占排行榜位置，打一次就回来',
+  '可以改昵称了，在页面底部「✏️ 修改昵称」',
+  '修复了部分老用户看不到自己找回码的问题',
 ]
 
 /** 主线称号门槛，从高到低排列 */

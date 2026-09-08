@@ -60,6 +60,35 @@ export async function recoverUser(roomId: string, recoveryCode: string): Promise
   return data as User | null
 }
 
+/** Fetch a user by id within a room（用于补齐本地缺失的身份字段） */
+export async function getUser(userId: string, roomId: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select()
+    .eq('id', userId)
+    .eq('room_id', roomId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data as User | null
+}
+
+/** Rename a user within a room */
+export async function updateNickname(userId: string, roomId: string, nickname: string): Promise<User> {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ nickname })
+    .eq('id', userId)
+    .eq('room_id', roomId)
+    .select()
+    .maybeSingle()
+
+  if (error) throw error
+  // users 表缺 update 策略时 RLS 不报错，只是一行都改不到，必须显式判空，否则前端会假装成功
+  if (!data) throw new Error('昵称未能写入，请确认 users 表已开启 update 策略')
+  return data as User
+}
+
 /** Check whether an error is a Postgres foreign key violation (e.g. user_id no longer exists) */
 export function isForeignKeyViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23503'

@@ -5,6 +5,8 @@ interface Props {
   children?: React.ReactNode
   cancelText?: string
   confirmText: string
+  /** 确认按钮禁用，用于输入未填完、请求进行中等场景 */
+  confirmDisabled?: boolean
   /** 不传则只渲染确认按钮，用于纯告知类弹窗 */
   onCancel?: () => void
   onConfirm: () => void
@@ -18,6 +20,7 @@ export function ConfirmModal({
   children,
   cancelText = '取消',
   confirmText,
+  confirmDisabled,
   onCancel,
   onConfirm,
 }: Props) {
@@ -39,7 +42,8 @@ export function ConfirmModal({
           )}
           <button
             onClick={onConfirm}
-            className="flex-1 py-3 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-600 transition-colors"
+            disabled={confirmDisabled}
+            className="flex-1 py-3 rounded-xl bg-purple-500 text-white font-medium hover:bg-purple-600 transition-colors disabled:opacity-40"
           >
             {confirmText}
           </button>

@@ -6,6 +6,17 @@
 
 暂无。
 
+## 2026-09-08 支持修改昵称 + 修复老用户找回码显示为空
+
+- 新增修改昵称：底部「✏️ 修改昵称」入口，改完后 localStorage、排行榜、动态同步更新；昵称未变化时不发请求
+  - 依赖 `users` 表的 update 策略（`create policy "Anyone can update users" on users for update using (true);`），已补进 `supabase-schema.sql`
+  - `api.updateNickname` 显式判断更新是否命中行数，缺策略时会明确报错而不是假装成功
+- 修复找回码功能上线（2026-08-11）之前加入的老用户，弹窗里找回码为空、复制出来是 `undefined` 的问题
+  - 老身份的 localStorage 里没有 `recoveryCode` 字段，且此前从未从服务端回填；现在点开弹窗时按需查一次并写回本地
+  - 复制按钮增加空值守卫，任何情况下不再复制出 `undefined`
+- `ConfirmModal` 新增可选 `confirmDisabled`，供输入类弹窗禁用确认按钮
+- 昵称长度上限提取为 `NICKNAME_MAX_LENGTH`，加入页与修改昵称弹窗共用
+
 ## 2026-09-02 日历翻月 + 长期不打卡不参与排名 + 首页拆 hook
 
 - 日历支持翻看历史月份，最早到第一次打卡所在月，再往前按钮置灰；标题右侧显示当月打卡次数

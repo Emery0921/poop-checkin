@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { NICKNAME_MAX_LENGTH } from '../lib/dicts'
 import { randomEmoji } from '../lib/utils'
 
 interface Props {
@@ -89,7 +90,7 @@ export function NicknameModal({ onJoin, onRecover, loading }: Props) {
           value={nickname}
           onChange={e => setNickname(e.target.value)}
           placeholder="输入你的昵称"
-          maxLength={12}
+          maxLength={NICKNAME_MAX_LENGTH}
           className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
           autoFocus
         />

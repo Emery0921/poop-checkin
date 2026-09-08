@@ -5,6 +5,7 @@ import { TodayFeed } from '../components/TodayFeed'
 import { Calendar } from '../components/Calendar'
 import { TitleGallery } from '../components/TitleGallery'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { EditNicknameModal } from '../components/EditNicknameModal'
 import { MakeupModal } from '../components/MakeupModal'
 import { UpdateModal } from '../components/UpdateModal'
 import { TitleTag } from '../components/TitleTag'
@@ -55,6 +56,7 @@ export function Home() {
   // 存住这次打卡随机到的那句吐槽，非空即代表分享询问弹窗打开
   const [shareCheer, setShareCheer] = useState<string | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
+  const [showEditNickname, setShowEditNickname] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showMakeup, setShowMakeup] = useState(false)
   const [makeupDate, setMakeupDate] = useState<string | null>(null)
@@ -184,8 +186,55 @@ export function Home() {
     handleShare()
   }
 
+  const handleConfirmNickname = async (nickname: string) => {
+    if (!user || loading) return
+    // 没改动就直接关掉，不必往数据库跑一趟
+    if (nickname === user.nickname) {
+      setShowEditNickname(false)
+      return
+    }
+    setLoading(true)
+    try {
+      await api.updateNickname(user.id, roomId, nickname)
+      const nextUser = { ...user, nickname }
+      setLocalUser(roomId, nextUser)
+      setUser(nextUser)
+      setShowEditNickname(false)
+      // 昵称已经改成功，刷新失败不能报成「修改失败」
+      await reload().catch(() => {})
+    } catch {
+      alert('昵称修改失败，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleShowRecoveryCode = async () => {
+    if (!user || loading) return
+    // 找回码功能上线前加入的老用户，本地存的身份里没有这个字段，按需从服务端补齐
+    if (!user.recoveryCode) {
+      setLoading(true)
+      try {
+        const found = await api.getUser(user.id, roomId)
+        if (!found?.recovery_code) {
+          alert('没查到你的找回码，可能这个身份已被删除')
+          return
+        }
+        const nextUser = { ...user, recoveryCode: found.recovery_code }
+        setLocalUser(roomId, nextUser)
+        setUser(nextUser)
+      } catch {
+        alert('找回码获取失败，请重试')
+        return
+      } finally {
+        setLoading(false)
+      }
+    }
+    setShowRecoveryCode(true)
+  }
+
   const handleCopyRecoveryCode = () => {
-    if (!user || !navigator.clipboard) return
+    if (!user?.recoveryCode || !navigator.clipboard) return
     navigator.clipboard.writeText(user.recoveryCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -321,13 +370,32 @@ export function Home() {
         📢 分享到群
       </button>
 
-      {/* Recovery Code */}
-      <button
-        onClick={() => setShowRecoveryCode(true)}
-        className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors"
-      >
-        🔑 查看我的找回码
-      </button>
+      {/* Profile Actions */}
+      <div className="flex items-center justify-center gap-4 text-xs text-gray-400">
+        <button
+          onClick={() => setShowEditNickname(true)}
+          className="hover:text-gray-600 transition-colors"
+        >
+          ✏️ 修改昵称
+        </button>
+        <span className="text-gray-200">|</span>
+        <button
+          onClick={handleShowRecoveryCode}
+          className="hover:text-gray-600 transition-colors"
+        >
+          🔑 查看我的找回码
+        </button>
+      </div>
+
+      {/* Edit Nickname Modal */}
+      {showEditNickname && (
+        <EditNicknameModal
+          currentNickname={user.nickname}
+          loading={loading}
+          onCancel={() => setShowEditNickname(false)}
+          onConfirm={handleConfirmNickname}
+        />
+      )}
 
       {/* Recovery Code Modal */}
       {showRecoveryCode && (
