@@ -5,6 +5,7 @@ import { TodayFeed } from '../components/TodayFeed'
 import { Calendar } from '../components/Calendar'
 import { TitleGallery } from '../components/TitleGallery'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { EditAvatarModal } from '../components/EditAvatarModal'
 import { EditNicknameModal } from '../components/EditNicknameModal'
 import { MakeupModal } from '../components/MakeupModal'
 import { UpdateModal } from '../components/UpdateModal'
@@ -57,6 +58,7 @@ export function Home() {
   const [shareCheer, setShareCheer] = useState<string | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
   const [showEditNickname, setShowEditNickname] = useState(false)
+  const [showEditAvatar, setShowEditAvatar] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showMakeup, setShowMakeup] = useState(false)
   const [makeupDate, setMakeupDate] = useState<string | null>(null)
@@ -204,6 +206,21 @@ export function Home() {
       await reload().catch(() => {})
     } catch {
       alert('昵称修改失败，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirmAvatar = async (avatarUrl: string | null) => {
+    if (!user || loading) return
+    setLoading(true)
+    try {
+      await api.updateAvatar(user.id, roomId, avatarUrl)
+      setShowEditAvatar(false)
+      // 头像已经存好，刷新失败不能报成「保存失败」
+      await reload().catch(() => {})
+    } catch {
+      alert('头像保存失败，请重试')
     } finally {
       setLoading(false)
     }
@@ -376,16 +393,34 @@ export function Home() {
           onClick={() => setShowEditNickname(true)}
           className="hover:text-gray-600 transition-colors"
         >
-          ✏️ 修改昵称
+          ✏️ 改昵称
+        </button>
+        <span className="text-gray-200">|</span>
+        <button
+          onClick={() => setShowEditAvatar(true)}
+          className="hover:text-gray-600 transition-colors"
+        >
+          🖼️ 换头像
         </button>
         <span className="text-gray-200">|</span>
         <button
           onClick={handleShowRecoveryCode}
           className="hover:text-gray-600 transition-colors"
         >
-          🔑 查看我的找回码
+          🔑 找回码
         </button>
       </div>
+
+      {/* Edit Avatar Modal */}
+      {showEditAvatar && (
+        <EditAvatarModal
+          emoji={user.emoji}
+          currentAvatarUrl={myStats?.avatarUrl ?? null}
+          loading={loading}
+          onCancel={() => setShowEditAvatar(false)}
+          onConfirm={handleConfirmAvatar}
+        />
+      )}
 
       {/* Edit Nickname Modal */}
       {showEditNickname && (

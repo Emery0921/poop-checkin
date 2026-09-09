@@ -1,5 +1,7 @@
 import type { LevelTitleId, RankItem, StatusTitleId, TimeTitleId, TitleId } from './types'
 import {
+  AVATAR_QUALITY,
+  AVATAR_SIZE,
   DROUGHT_FROM_DAYS,
   DROUGHT_RULES,
   EMOJIS,
@@ -196,6 +198,41 @@ export function generateRecoveryCode(): string {
     code += chars[Math.floor(Math.random() * chars.length)]
   }
   return code
+}
+
+/** 图片解码是异步的，包一层 Promise 才能配合 async/await */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('图片读取失败'))
+    image.src = src
+  })
+}
+
+/**
+ * 把用户选的图片压成边长 AVATAR_SIZE 的正方形 JPEG base64。
+ * 手机拍的原图动辄几 MB，必须压完再存库，否则排行榜每次刷新都要把它拉一遍。
+ */
+export async function fileToAvatarDataUrl(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = await loadImage(objectUrl)
+    const canvas = document.createElement('canvas')
+    canvas.width = AVATAR_SIZE
+    canvas.height = AVATAR_SIZE
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('当前浏览器不支持图片压缩')
+
+    // 先按短边居中裁成正方形再缩放，避免头像被拉变形
+    const side = Math.min(image.width, image.height)
+    const offsetX = (image.width - side) / 2
+    const offsetY = (image.height - side) / 2
+    context.drawImage(image, offsetX, offsetY, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE)
+    return canvas.toDataURL('image/jpeg', AVATAR_QUALITY)
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
 }
 
 /** 把若干称号拼成纯文本（分享文案用），如「🏆 排便传奇 · 🔥 铁打作息」 */

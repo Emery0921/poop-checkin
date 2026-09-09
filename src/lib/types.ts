@@ -4,6 +4,8 @@ export interface User {
   emoji: string
   room_id: string
   recovery_code: string
+  /** 上传的头像，压缩后的 base64；为空则展示 emoji */
+  avatar_url?: string | null
   created_at: string
 }
 
@@ -36,6 +38,8 @@ export interface RankItem {
   user_id: string
   nickname: string
   emoji: string
+  /** 上传的头像，为空则回退到 emoji */
+  avatarUrl: string | null
   total: number
   streak: number
   checkedToday: boolean

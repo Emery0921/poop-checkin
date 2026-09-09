@@ -1,6 +1,7 @@
 import type { RankItem, TitleId } from '../lib/types'
 import { MEDAL_MAP } from '../lib/dicts'
 import { formatTime } from '../lib/utils'
+import { Avatar } from './Avatar'
 import { TitleTag } from './TitleTag'
 
 interface Props {
@@ -31,7 +32,7 @@ export function RankingList({ ranking, currentUserId }: Props) {
             <span className="text-lg w-8 text-center">
               {MEDAL_MAP[idx] ?? <span className="text-gray-400 text-sm">{idx + 1}</span>}
             </span>
-            <span className="text-2xl">{item.emoji}</span>
+            <Avatar emoji={item.emoji} avatarUrl={item.avatarUrl} />
             <div className="flex-1 text-left">
               <p className="font-medium text-sm flex flex-wrap items-center gap-1">
                 {item.nickname}

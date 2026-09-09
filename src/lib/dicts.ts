@@ -6,6 +6,21 @@ export const EMOJIS = ['💩', '🐶', '🐱', '🐼', '🦊', '🐸', '🐵', '
 /** 昵称最大长度 */
 export const NICKNAME_MAX_LENGTH = 12
 
+/** 上传头像压缩后的边长（正方形），base64 直接存库，别调太大 */
+export const AVATAR_SIZE = 128
+
+/** 头像压缩质量 */
+export const AVATAR_QUALITY = 0.7
+
+/** 允许选择的原图大小上限，超过直接拒绝，避免在手机上解码巨图卡死 */
+export const MAX_AVATAR_FILE_SIZE = 10 * 1024 * 1024
+
+/** 头像展示尺寸：md 用于排行榜，sm 用于动态列表 */
+export const AVATAR_SIZE_CLASS = {
+  sm: { box: 'w-6 h-6', text: 'text-xl' },
+  md: { box: 'w-8 h-8', text: 'text-2xl' },
+}
+
 /** 打卡后可撤回的秒数 */
 export const UNDO_DURATION = 180
 
@@ -67,12 +82,12 @@ export const SEEN_UPDATE_KEY = 'poop_seen_update'
  * 更新日志版本号。有需要告知用户的改动时改这里，
  * 与 localStorage 里已读的版本不一致时，老用户进入会弹一次。
  */
-export const UPDATE_VERSION = '2026-09-08'
+export const UPDATE_VERSION = '2026-09-09'
 
 /** 更新日志弹窗里展示的条目，与版本号同步维护 */
 export const UPDATE_ITEMS = [
-  '可以改昵称了，在页面底部「✏️ 修改昵称」',
-  '修复了部分老用户看不到自己找回码的问题',
+  '可以上传自己的头像了，在页面底部「🖼️ 换头像」',
+  '不想用图片的话，也能一键改回 emoji 头像',
 ]
 
 /** 主线称号门槛，从高到低排列 */

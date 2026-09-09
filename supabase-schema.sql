@@ -7,6 +7,7 @@ create table users (
   emoji text not null,
   room_id text not null,
   recovery_code text not null,
+  avatar_url text, -- 上传头像压缩后的 base64，为空则前端展示 emoji
   created_at timestamptz default now()
 );
 

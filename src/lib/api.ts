@@ -73,20 +73,36 @@ export async function getUser(userId: string, roomId: string): Promise<User | nu
   return data as User | null
 }
 
-/** Rename a user within a room */
-export async function updateNickname(userId: string, roomId: string, nickname: string): Promise<User> {
+/**
+ * 更新 users 表的部分字段。
+ * users 表缺 update 策略时 RLS 不报错，只是一行都改不到，所以必须显式判空，否则前端会假装成功。
+ */
+async function updateUser(
+  userId: string,
+  roomId: string,
+  patch: Partial<Pick<User, 'nickname' | 'avatar_url'>>
+): Promise<User> {
   const { data, error } = await supabase
     .from('users')
-    .update({ nickname })
+    .update(patch)
     .eq('id', userId)
     .eq('room_id', roomId)
     .select()
     .maybeSingle()
 
   if (error) throw error
-  // users 表缺 update 策略时 RLS 不报错，只是一行都改不到，必须显式判空，否则前端会假装成功
-  if (!data) throw new Error('昵称未能写入，请确认 users 表已开启 update 策略')
+  if (!data) throw new Error('修改未能写入，请确认 users 表已开启 update 策略')
   return data as User
+}
+
+/** Rename a user within a room */
+export async function updateNickname(userId: string, roomId: string, nickname: string): Promise<User> {
+  return updateUser(userId, roomId, { nickname })
+}
+
+/** 更新头像，传 null 表示恢复用 emoji */
+export async function updateAvatar(userId: string, roomId: string, avatarUrl: string | null): Promise<User> {
+  return updateUser(userId, roomId, { avatar_url: avatarUrl })
 }
 
 /** Check whether an error is a Postgres foreign key violation (e.g. user_id no longer exists) */
@@ -172,7 +188,7 @@ export async function getRankings(
   // Get all users in the room
   const { data: users, error: usersError } = await supabase
     .from('users')
-    .select('id, nickname, emoji')
+    .select('id, nickname, emoji, avatar_url')
     .eq('room_id', roomId)
 
   // 请求失败必须抛出，否则调用方会把「拉取失败」当成「房间是空的」而清空榜单
@@ -213,7 +229,7 @@ export async function getRankings(
   }
 }
 
-type RankUser = { id: string; nickname: string; emoji: string }
+type RankUser = { id: string; nickname: string; emoji: string; avatar_url?: string | null }
 type RankRow = { user_id: string; date: string; created_at: string }
 
 function buildRanking(
@@ -255,6 +271,7 @@ function buildRanking(
       user_id: u.id,
       nickname: u.nickname,
       emoji: u.emoji,
+      avatarUrl: u.avatar_url ?? null,
       total,
       streak,
       checkedToday: todayTimes.length > 0,
