@@ -1,5 +1,5 @@
 import type { RewardTicket } from '../lib/types'
-import { RARITY_META } from '../lib/dicts'
+import { RARITY_META, RARITY_REWARD, RARITY_RULES } from '../lib/dicts'
 import { formatDateWithWeekday } from '../lib/utils'
 import { ConfirmModal } from './ConfirmModal'
 
@@ -13,6 +13,8 @@ interface Props {
 /** 我的奖券：列出稀有掉落获得的实物奖券，线下兑付后自己标记已兑换 */
 export function RewardModal({ tickets, loading, onClaim, onClose }: Props) {
   const unclaimed = tickets.filter(t => !t.claimed).length
+  // 只列出有奖品的档位作为说明，金/银纯装饰不列
+  const rewardable = RARITY_RULES.filter(rule => RARITY_REWARD[rule.id])
 
   return (
     <ConfirmModal
@@ -22,8 +24,16 @@ export function RewardModal({ tickets, loading, onClaim, onClose }: Props) {
       confirmText="关闭"
       onConfirm={onClose}
     >
+      <div className="mb-3 px-1 text-left">
+        <p className="text-xs text-gray-400 mb-1">掉到稀有 💩 就能拿奖：</p>
+        {rewardable.map(rule => (
+          <p key={rule.id} className="text-xs text-gray-500">
+            {RARITY_META[rule.id].icon} {RARITY_META[rule.id].name} → {RARITY_REWARD[rule.id]}
+          </p>
+        ))}
+      </div>
       {tickets.length === 0 ? (
-        <p className="mb-6 text-sm text-gray-400">Empty</p>
+        <p className="mb-6 text-sm text-gray-400">还没中过奖，多打几次卡试试</p>
       ) : (
         <div className="mb-6 space-y-2 max-h-60 overflow-y-auto text-left">
           {tickets.map(ticket => (
