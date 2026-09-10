@@ -1,4 +1,4 @@
-import type { LevelTitleId, RankItem, StatusTitleId, TimeTitleId, TitleId } from './types'
+import type { LevelTitleId, RankItem, Rarity, StatusTitleId, TimeTitleId, TitleId } from './types'
 import {
   AVATAR_QUALITY,
   AVATAR_SIZE,
@@ -8,6 +8,7 @@ import {
   HIDE_FROM_RANK_AFTER_DAYS,
   LEVEL_RULES,
   MAKEUP_LOOKBACK_DAYS,
+  RARITY_RULES,
   RECENT_WEEK_COUNT,
   SEEN_UPDATE_KEY,
   STREAK_RULES,
@@ -233,6 +234,22 @@ export async function fileToAvatarDataUrl(file: File): Promise<string> {
   } finally {
     URL.revokeObjectURL(objectUrl)
   }
+}
+
+/** 掷一次稀有掉落，未命中返回 null */
+export function rollRarity(): Rarity | null {
+  const roll = Math.random()
+  let threshold = 0
+  for (const rule of RARITY_RULES) {
+    threshold += rule.chance
+    if (roll < threshold) return rule.id
+  }
+  return null
+}
+
+/** 全 0 的稀有收集计数。从规则表生成，新增档位时不用再改各处初始化 */
+export function emptyRarityCounts(): Record<Rarity, number> {
+  return Object.fromEntries(RARITY_RULES.map(rule => [rule.id, 0])) as Record<Rarity, number>
 }
 
 /** 把若干称号拼成纯文本（分享文案用），如「🏆 排便传奇 · 🔥 铁打作息」 */

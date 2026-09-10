@@ -1,5 +1,5 @@
 import type { RankItem } from '../lib/types'
-import { LAST_BADGE_FROM_HOUR } from '../lib/dicts'
+import { CHAMPION_ICON, LAST_BADGE_FROM_HOUR, RARITY_META } from '../lib/dicts'
 import { formatTime, getHour } from '../lib/utils'
 import { Avatar } from './Avatar'
 
@@ -11,12 +11,13 @@ interface Props {
 /** 今日动态：把全房间今天的打卡按时间倒序排成一条流水，最早的一条挂「今日首拉」 */
 export function TodayFeed({ ranking, currentUserId }: Props) {
   const items = ranking
-    .flatMap(r => r.todayTimes.map(time => ({
-      time,
+    .flatMap(r => r.todayCheckins.map(checkin => ({
+      ...checkin,
       emoji: r.emoji,
       avatarUrl: r.avatarUrl,
       nickname: r.nickname,
       userId: r.user_id,
+      isLastWeekChampion: r.isLastWeekChampion,
     })))
     .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
@@ -40,9 +41,14 @@ export function TodayFeed({ ranking, currentUserId }: Props) {
         <div key={`${item.userId}-${item.time}`} className="flex items-center gap-3">
           <span className="w-20 shrink-0 text-xs text-gray-400 tabular-nums">{formatTime(item.time)}</span>
           <Avatar emoji={item.emoji} avatarUrl={item.avatarUrl} size="sm" />
-          <span className={`flex-1 text-sm ${item.userId === currentUserId ? 'font-medium text-purple-600' : ''}`}>
-            {item.nickname}
-          </span>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm ${item.userId === currentUserId ? 'font-medium text-purple-600' : ''}`}>
+              {item.nickname}
+              {item.isLastWeekChampion && <span title="上周冠军"> {CHAMPION_ICON}</span>}
+              {item.rarity && <span title={RARITY_META[item.rarity].name}> {RARITY_META[item.rarity].icon}</span>}
+            </p>
+            {item.note && <p className="text-xs text-gray-400 truncate">{item.note}</p>}
+          </div>
           {item.time === firstTime && (
             <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 rounded-md text-[10px] leading-none text-amber-600 whitespace-nowrap">
               🐓 今日首拉

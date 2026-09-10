@@ -1,4 +1,49 @@
-import type { LevelTitleId, StatusTitleId, TimeTitleId, TitleId } from './types'
+import type { LevelTitleId, Rarity, StatusTitleId, TimeTitleId, TitleId } from './types'
+
+/** 打卡吐槽的最大长度，太长动态流放不下 */
+export const NOTE_MAX_LENGTH = 20
+
+/** 稀有掉落概率，必须从稀有到常见排列，按顺序累加判定、命中即停；合计 16.7% */
+export const RARITY_RULES: Array<{ id: Rarity; chance: number }> = [
+  { id: 'alien', chance: 0.002 },
+  { id: 'diamond', chance: 0.005 },
+  { id: 'rainbow', chance: 0.01 },
+  { id: 'gold', chance: 0.05 },
+  { id: 'silver', chance: 0.1 },
+]
+
+/** 稀有掉落展示信息 */
+export const RARITY_META: Record<Rarity, { icon: string; name: string; cheer: string }> = {
+  alien: { icon: '👽', name: '外星💩', cheer: '外星💩！千分之二的传说，截图留证 👽' },
+  diamond: { icon: '💎', name: '钻石💩', cheer: '钻石💩！硬得发光 💎' },
+  rainbow: { icon: '🌈', name: '彩虹💩', cheer: '彩虹💩！百里挑一的运气 🌈' },
+  gold: { icon: '🥇', name: '金💩', cheer: '金💩 落地，今天财运不错 🥇' },
+  silver: { icon: '🥈', name: '银💩', cheer: '银💩 到手，也算小赚 🥈' },
+}
+
+/**
+ * 稀有掉落对应的实物奖品，只有低概率三档有，空字符串表示纯装饰。
+ * 中奖即生成一张带券码的奖券，线下兑付后在「我的奖券」里标记已兑换。
+ */
+export const RARITY_REWARD: Record<Rarity, string> = {
+  alien: '星巴克',
+  diamond: '奶茶',
+  rainbow: '瑞幸',
+  gold: '',
+  silver: '',
+}
+
+/** 上周冠军本周挂的皇冠 */
+export const CHAMPION_ICON = '👑'
+
+/** 每天最多允许撤回几次，防止靠反复打卡撤回来刷稀有掉落 */
+export const MAX_UNDO_PER_DAY = 2
+
+/** 累计撤回达到这个次数，就在排行榜公开标记 */
+export const UNDO_MARK_THRESHOLD = 2
+
+/** 撤回标记的图标 */
+export const UNDO_ICON = '🔁'
 
 /** 加入时随机分配的头像候选 */
 export const EMOJIS = ['💩', '🐶', '🐱', '🐼', '🦊', '🐸', '🐵', '🐷', '🐮', '🐔', '🦄', '🐙', '👻', '🤡', '🎃']
@@ -69,6 +114,14 @@ export const LAST_BADGE_FROM_HOUR = 22
 /** 日历表头的星期文案 */
 export const CALENDAR_WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
+/** 日历格子按当天打卡次数逐级加深，索引 0 对应 1 次，超过档位数按最后一档 */
+export const CALENDAR_LEVEL_CLASS = [
+  'bg-purple-100 text-purple-700',
+  'bg-purple-200 text-purple-800',
+  'bg-purple-300 text-purple-900',
+  'bg-purple-500 text-white',
+]
+
 /** 日期文案里的星期，索引与 Date.getUTCDay() 对齐 */
 export const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
@@ -82,12 +135,14 @@ export const SEEN_UPDATE_KEY = 'poop_seen_update'
  * 更新日志版本号。有需要告知用户的改动时改这里，
  * 与 localStorage 里已读的版本不一致时，老用户进入会弹一次。
  */
-export const UPDATE_VERSION = '2026-09-09'
+export const UPDATE_VERSION = '2026-09-10'
 
 /** 更新日志弹窗里展示的条目，与版本号同步维护 */
 export const UPDATE_ITEMS = [
-  '可以上传自己的头像了，在页面底部「🖼️ 换头像」',
-  '不想用图片的话，也能一键改回 emoji 头像',
+  '打卡有概率掉稀有 💩，外星 / 钻石 / 彩虹三档还能掉实物奖券',
+  '打卡可以填一句吐槽，动态里能看到',
+  '每天最多撤回 2 次，撤回多了排行榜会公开标记',
+  '日历按当天打卡次数颜色逐级加深',
 ]
 
 /** 主线称号门槛，从高到低排列 */

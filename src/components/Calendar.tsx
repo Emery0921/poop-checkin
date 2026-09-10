@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CALENDAR_WEEKDAY_LABELS } from '../lib/dicts'
+import { CALENDAR_LEVEL_CLASS, CALENDAR_WEEKDAY_LABELS } from '../lib/dicts'
 import { getTodayDate, shiftMonthKey } from '../lib/utils'
 
 interface Props {
@@ -17,7 +17,11 @@ export function Calendar({ dates }: Props) {
   const daysInMonth = new Date(year, month, 0).getDate()
   const firstDayOfWeek = new Date(year, month - 1, 1).getDay()
 
-  const dateSet = new Set(dates)
+  // dates 一天多次打卡就有多条，按日期计数得到每天的次数
+  const countByDate = dates.reduce(
+    (acc, date) => acc.set(date, (acc.get(date) ?? 0) + 1),
+    new Map<string, number>()
+  )
   // 第一次打卡之前的月份全是空的，没必要让人一直往前翻
   const earliestMonth = dates.length > 0
     ? dates.reduce((a, b) => (b < a ? b : a)).slice(0, 7)
@@ -59,16 +63,26 @@ export function Calendar({ dates }: Props) {
         {cells.map((day, i) => {
           if (day === null) return <div key={`empty-${i}`} />
           const dateStr = `${viewMonth}-${String(day).padStart(2, '0')}`
-          const checked = dateSet.has(dateStr)
+          const count = countByDate.get(dateStr) ?? 0
           const isToday = dateStr === today
+          // 次数越多颜色越深，超过档位数统一用最深那档
+          const levelClass = count > 0
+            ? CALENDAR_LEVEL_CLASS[Math.min(count, CALENDAR_LEVEL_CLASS.length) - 1]
+            : ''
           return (
             <div
               key={dateStr}
-              className={`py-1.5 rounded-lg text-sm ${
-                checked ? 'bg-purple-100 text-purple-700 font-bold' : ''
+              title={count > 0 ? `${dateStr} 打卡 ${count} 次` : dateStr}
+              className={`relative py-1.5 rounded-lg text-sm ${
+                count > 0 ? `font-bold ${levelClass}` : ''
               } ${isToday ? 'ring-2 ring-purple-400' : ''}`}
             >
-              {checked ? '💩' : day}
+              {count > 0 ? '💩' : day}
+              {count > 1 && (
+                <span className="absolute top-0 right-0.5 text-[10px] leading-none font-medium">
+                  {count}
+                </span>
+              )}
             </div>
           )
         })}

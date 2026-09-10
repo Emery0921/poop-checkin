@@ -1,5 +1,5 @@
 import type { RankItem, TitleId } from '../lib/types'
-import { MEDAL_MAP } from '../lib/dicts'
+import { CHAMPION_ICON, MEDAL_MAP, UNDO_ICON, UNDO_MARK_THRESHOLD } from '../lib/dicts'
 import { formatTime } from '../lib/utils'
 import { Avatar } from './Avatar'
 import { TitleTag } from './TitleTag'
@@ -36,6 +36,15 @@ export function RankingList({ ranking, currentUserId }: Props) {
             <div className="flex-1 text-left">
               <p className="font-medium text-sm flex flex-wrap items-center gap-1">
                 {item.nickname}
+                {item.isLastWeekChampion && <span title="上周冠军">{CHAMPION_ICON}</span>}
+                {item.undoCount >= UNDO_MARK_THRESHOLD && (
+                  <span
+                    className="px-1 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] leading-none text-gray-500"
+                    title={`累计撤回 ${item.undoCount} 次`}
+                  >
+                    {UNDO_ICON} {item.undoCount}
+                  </span>
+                )}
                 {inlineTitles && titles.map(t => <TitleTag key={t} title={t} />)}
                 {item.checkedToday && <span className="text-xs text-green-500" title="今日已打卡">✅</span>}
               </p>
@@ -46,7 +55,7 @@ export function RankingList({ ranking, currentUserId }: Props) {
               )}
               <p className="text-xs text-gray-400 mt-0.5">
                 🔥 连续{item.streak}天
-                {item.checkedToday && ` · ${item.todayTimes.map(formatTime).join('、')}`}
+                {item.checkedToday && ` · ${item.todayCheckins.map(c => formatTime(c.time)).join('、')}`}
               </p>
             </div>
             <div className="text-right">

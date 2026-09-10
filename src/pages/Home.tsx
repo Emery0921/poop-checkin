@@ -7,13 +7,15 @@ import { TitleGallery } from '../components/TitleGallery'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { EditAvatarModal } from '../components/EditAvatarModal'
 import { EditNicknameModal } from '../components/EditNicknameModal'
+import { RewardModal } from '../components/RewardModal'
 import { MakeupModal } from '../components/MakeupModal'
 import { UpdateModal } from '../components/UpdateModal'
 import { TitleTag } from '../components/TitleTag'
 import { useHomeData } from '../hooks/useHomeData'
 import { useUndoCountdown } from '../hooks/useUndoCountdown'
 import type { RankMode, TabKey } from '../lib/dicts'
-import { CHEERS, RANK_MODE_OPTIONS, TAB_OPTIONS, UNDO_DURATION, UPDATE_VERSION } from '../lib/dicts'
+import type { RewardTicket } from '../lib/types'
+import { CHEERS, MAX_UNDO_PER_DAY, NOTE_MAX_LENGTH, RANK_MODE_OPTIONS, RARITY_META, RARITY_REWARD, RARITY_RULES, TAB_OPTIONS, UNDO_DURATION, UPDATE_VERSION } from '../lib/dicts'
 import { getLocalUser, setLocalUser, clearLocalUser, getMakeupCandidateDates, getRecentWeekStarts, formatWeekLabel, formatTitleText, filterRankVisible, getSeenUpdateVersion, setSeenUpdateVersion } from '../lib/utils'
 import * as api from '../lib/api'
 
@@ -54,11 +56,15 @@ export function Home() {
   const [animating, setAnimating] = useState(false)
   const [tab, setTab] = useState<TabKey>('rank')
   const [showConfirm, setShowConfirm] = useState(false)
-  // 存住这次打卡随机到的那句吐槽，非空即代表分享询问弹窗打开
-  const [shareCheer, setShareCheer] = useState<string | null>(null)
+  const [showUndoWarning, setShowUndoWarning] = useState(false)
+  const [checkinNote, setCheckinNote] = useState('')
+  // 存住这次打卡要展示的图标与吐槽，非空即代表分享询问弹窗打开
+  const [sharePrompt, setSharePrompt] = useState<{ icon: string; cheer: string; reward?: string } | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
   const [showEditNickname, setShowEditNickname] = useState(false)
   const [showEditAvatar, setShowEditAvatar] = useState(false)
+  // 非空即代表奖券弹窗打开
+  const [rewards, setRewards] = useState<RewardTicket[] | null>(null)
   const [copied, setCopied] = useState(false)
   const [showMakeup, setShowMakeup] = useState(false)
   const [makeupDate, setMakeupDate] = useState<string | null>(null)
@@ -105,14 +111,24 @@ export function Home() {
     setShowConfirm(false)
     setLoading(true)
     try {
-      const checkin = await api.checkin(user.id, roomId)
+      const checkin = await api.checkin(user.id, roomId, checkinNote.trim() || undefined)
+      setCheckinNote('')
       addTodayCheckin(checkin)
       setAnimating(true)
       setTimeout(() => setAnimating(false), 1000)
       startUndo(checkin.id)
       // 刷新失败不影响打卡结果，不能报成「打卡失败」
       await reload().catch(() => {})
-      setShareCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)])
+      // 掉到稀有的就用专属文案，盖掉普通吐槽；低概率三档还发一张实物奖券
+      setSharePrompt(checkin.rarity
+        ? {
+          icon: RARITY_META[checkin.rarity].icon,
+          cheer: RARITY_META[checkin.rarity].cheer,
+          reward: RARITY_REWARD[checkin.rarity]
+            ? `🎟️ 获得「${RARITY_REWARD[checkin.rarity]}」奖券，去「我的奖券」查看券码`
+            : undefined,
+        }
+        : { icon: '🎉', cheer: CHEERS[Math.floor(Math.random() * CHEERS.length)] })
     } catch (err) {
       // 用户已被删除（外键约束失败），清空本地身份重新走注册流程
       if (api.isForeignKeyViolation(err)) {
@@ -126,8 +142,9 @@ export function Home() {
     }
   }
 
-  const handleUndo = async () => {
+  const performUndo = async () => {
     if (!pendingCheckinId) return
+    setShowUndoWarning(false)
     try {
       await api.cancelCheckin(pendingCheckinId)
       removeTodayCheckin(pendingCheckinId)
@@ -137,6 +154,21 @@ export function Home() {
     } catch {
       alert('取消失败，可能已超时')
     }
+  }
+
+  const handleUndo = () => {
+    if (!pendingCheckinId) return
+    const undoneToday = myStats?.todayUndoCount ?? 0
+    if (undoneToday >= MAX_UNDO_PER_DAY) {
+      alert(`今天已经撤回 ${MAX_UNDO_PER_DAY} 次，不能再撤回了`)
+      return
+    }
+    // 用掉最后一次之前先提醒，别让人不知不觉用完还被公开标记
+    if (undoneToday === MAX_UNDO_PER_DAY - 1) {
+      setShowUndoWarning(true)
+      return
+    }
+    performUndo()
   }
 
   const handleMakeupClick = () => {
@@ -184,7 +216,7 @@ export function Home() {
   }
 
   const handleConfirmShare = () => {
-    setShareCheer(null)
+    setSharePrompt(null)
     handleShare()
   }
 
@@ -221,6 +253,31 @@ export function Home() {
       await reload().catch(() => {})
     } catch {
       alert('头像保存失败，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleShowRewards = async () => {
+    if (!user || loading) return
+    setLoading(true)
+    try {
+      setRewards(await api.getMyRewards(user.id, roomId))
+    } catch {
+      alert('奖券加载失败，请重试')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClaimReward = async (checkinId: string) => {
+    if (!user || loading) return
+    setLoading(true)
+    try {
+      await api.claimReward(checkinId)
+      setRewards(await api.getMyRewards(user.id, roomId))
+    } catch {
+      alert('核销失败，请重试')
     } finally {
       setLoading(false)
     }
@@ -295,6 +352,14 @@ export function Home() {
             <p className="text-xs text-gray-400 mt-1">
               累计 {myStats.total} 次 · 连续 {myStats.streak} 天
             </p>
+            {RARITY_RULES.some(rule => myStats.rarityCounts[rule.id] > 0) && (
+              <p className="text-xs text-gray-400 mt-1">
+                {RARITY_RULES
+                  .filter(rule => myStats.rarityCounts[rule.id] > 0)
+                  .map(rule => `${RARITY_META[rule.id].icon} ${myStats.rarityCounts[rule.id]}`)
+                  .join(' · ')}
+              </p>
+            )}
             {(myStats.levelTitle || myStats.statusTitle || myStats.timeTitle) && (
               <div className="mt-2 flex flex-wrap items-center justify-center gap-1">
                 <TitleTag title={myStats.levelTitle} />
@@ -404,12 +469,42 @@ export function Home() {
         </button>
         <span className="text-gray-200">|</span>
         <button
+          onClick={handleShowRewards}
+          className="hover:text-gray-600 transition-colors"
+        >
+          🎟️ 奖券
+        </button>
+        <span className="text-gray-200">|</span>
+        <button
           onClick={handleShowRecoveryCode}
           className="hover:text-gray-600 transition-colors"
         >
           🔑 找回码
         </button>
       </div>
+
+      {/* Undo Warning Modal */}
+      {showUndoWarning && (
+        <ConfirmModal
+          icon="⚠️"
+          title="今天最后一次撤回"
+          description={`用掉这次之后今天就不能再撤回了。累计撤回次数会公开显示在排行榜上。`}
+          cancelText="算了"
+          confirmText="确认撤回"
+          onCancel={() => setShowUndoWarning(false)}
+          onConfirm={performUndo}
+        />
+      )}
+
+      {/* Reward Modal */}
+      {rewards && (
+        <RewardModal
+          tickets={rewards}
+          loading={loading}
+          onClaim={handleClaimReward}
+          onClose={() => setRewards(null)}
+        />
+      )}
 
       {/* Edit Avatar Modal */}
       {showEditAvatar && (
@@ -456,22 +551,35 @@ export function Home() {
           title="确认打卡？"
           description="打卡后 3 分钟内可撤回"
           confirmText="确认打卡"
-          onCancel={() => setShowConfirm(false)}
+          onCancel={() => { setShowConfirm(false); setCheckinNote('') }}
           onConfirm={handleConfirmCheckin}
-        />
+        >
+          <input
+            type="text"
+            value={checkinNote}
+            onChange={e => setCheckinNote(e.target.value)}
+            placeholder="来一句吐槽（可不填）"
+            maxLength={NOTE_MAX_LENGTH}
+            className="w-full mb-6 px-4 py-2.5 border border-gray-200 rounded-xl text-center text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+          />
+        </ConfirmModal>
       )}
 
       {/* Share Prompt Modal */}
-      {shareCheer && (
+      {sharePrompt && (
         <ConfirmModal
-          icon="🎉"
-          title={shareCheer}
+          icon={sharePrompt.icon}
+          title={sharePrompt.cheer}
           description="要把战绩分享到群里吗？"
           cancelText="不用了"
           confirmText="分享到群"
-          onCancel={() => setShareCheer(null)}
+          onCancel={() => setSharePrompt(null)}
           onConfirm={handleConfirmShare}
-        />
+        >
+          {sharePrompt.reward && (
+            <p className="text-sm font-medium text-amber-600 mb-4">{sharePrompt.reward}</p>
+          )}
+        </ConfirmModal>
       )}
 
       {/* Makeup Modal */}
@@ -479,6 +587,7 @@ export function Home() {
         <MakeupModal
           dates={getMakeupCandidateDates(myDates)}
           selectedDate={makeupDate}
+          remaining={makeupRemaining}
           onSelectDate={setMakeupDate}
           onCancel={() => setShowMakeup(false)}
           onConfirm={handleConfirmMakeup}

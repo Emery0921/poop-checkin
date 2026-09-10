@@ -9,14 +9,40 @@ export interface User {
   created_at: string
 }
 
+/** 稀有掉落，普通打卡为 null */
+export type Rarity = 'alien' | 'diamond' | 'rainbow' | 'gold' | 'silver'
+
 export interface Checkin {
   id: string
   user_id: string
   room_id: string
   date: string // YYYY-MM-DD in Asia/Shanghai
   created_at: string
-  note?: string
+  note?: string | null
   is_makeup?: boolean
+  rarity?: Rarity | null
+  /** 实物奖券是否已兑换 */
+  reward_claimed?: boolean
+  /** 已撤回。撤回改为软删除，否则无法统计撤回次数 */
+  cancelled?: boolean
+}
+
+/** 一张实物奖券，由带奖品的稀有掉落生成 */
+export interface RewardTicket {
+  checkinId: string
+  /** 券码，取打卡记录 id 前 8 位 */
+  code: string
+  rarity: Rarity
+  reward: string
+  createdAt: string
+  claimed: boolean
+}
+
+/** 今天的一次打卡，用于动态流与排行榜展示 */
+export interface TodayCheckin {
+  time: string
+  note: string | null
+  rarity: Rarity | null
 }
 
 /** 主线称号：按累计次数，只涨不掉 */
@@ -43,7 +69,15 @@ export interface RankItem {
   total: number
   streak: number
   checkedToday: boolean
-  todayTimes: string[] // ISO timestamps of today's checkins
+  todayCheckins: TodayCheckin[]
+  /** 各类稀有掉落的累计数量 */
+  rarityCounts: Record<Rarity, number>
+  /** 上周打卡最多的人，本周挂皇冠 */
+  isLastWeekChampion: boolean
+  /** 累计撤回次数，达到阈值会在榜上公开标记 */
+  undoCount: number
+  /** 今天已撤回次数，用于限制继续撤回 */
+  todayUndoCount: number
   /** 距上次打卡的天数，从未打卡为 null；始终按全部历史计算，周榜里也一致 */
   daysSinceLast: number | null
   // 三个称号槽位始终按总榜数据计算，周榜里也保持一致
