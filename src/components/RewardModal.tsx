@@ -33,7 +33,7 @@ export function RewardModal({ tickets, loading, onClaim, onClose }: Props) {
         ))}
       </div>
       {tickets.length === 0 ? (
-        <p className="mb-6 text-sm text-gray-400">还没中过奖，多打几次卡试试</p>
+        <p className="mb-6 text-sm text-gray-400">Empty</p>
       ) : (
         <div className="mb-6 space-y-2 max-h-60 overflow-y-auto text-left">
           {tickets.map(ticket => (

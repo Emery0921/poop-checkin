@@ -1,5 +1,5 @@
 import type { RankItem, TitleId } from '../lib/types'
-import { CHAMPION_ICON, MEDAL_MAP, UNDO_ICON, UNDO_MARK_THRESHOLD } from '../lib/dicts'
+import { CHAMPION_ICON, MEDAL_MAP, RARITY_META, UNDO_ICON, UNDO_MARK_THRESHOLD } from '../lib/dicts'
 import { formatTime } from '../lib/utils'
 import { Avatar } from './Avatar'
 import { TitleTag } from './TitleTag'
@@ -19,8 +19,6 @@ export function RankingList({ ranking, currentUserId }: Props) {
       {ranking.map((item, idx) => {
         const titles = [item.levelTitle, item.statusTitle, item.timeTitle]
           .filter((t): t is TitleId => t !== null)
-        // 两个以内跟在昵称后面，超过两个会把行撑爆，单独占一行
-        const inlineTitles = titles.length <= 2
 
         return (
           <div
@@ -45,10 +43,14 @@ export function RankingList({ ranking, currentUserId }: Props) {
                     {UNDO_ICON} {item.undoCount}
                   </span>
                 )}
-                {inlineTitles && titles.map(t => <TitleTag key={t} title={t} />)}
+                {item.rarityHistory.length > 0 && (
+                  <span title={`累计获得 ${item.rarityHistory.length} 次稀有掉落，按获得先后排列`}>
+                    {item.rarityHistory.map(id => RARITY_META[id].icon).join('')}
+                  </span>
+                )}
                 {item.checkedToday && <span className="text-xs text-green-500" title="今日已打卡">✅</span>}
               </p>
-              {!inlineTitles && (
+              {titles.length > 0 && (
                 <div className="mt-1 flex flex-wrap items-center gap-1">
                   {titles.map(t => <TitleTag key={t} title={t} />)}
                 </div>

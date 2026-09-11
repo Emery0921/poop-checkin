@@ -70,6 +70,8 @@ export interface RankItem {
   streak: number
   checkedToday: boolean
   todayCheckins: TodayCheckin[]
+  /** 累计掉落记录，按发生时间正序，用于按掉落顺序展示图标 */
+  rarityHistory: Rarity[]
   /** 各类稀有掉落的累计数量 */
   rarityCounts: Record<Rarity, number>
   /** 上周打卡最多的人，本周挂皇冠 */

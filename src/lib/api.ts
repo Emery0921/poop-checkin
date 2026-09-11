@@ -273,6 +273,7 @@ export async function getRankings(
     r.user_id,
     {
       daysSinceLast: r.daysSinceLast,
+      rarityHistory: r.rarityHistory,
       rarityCounts: r.rarityCounts,
       undoCount: r.undoCount,
       todayUndoCount: r.todayUndoCount,
@@ -345,6 +346,8 @@ function buildRanking(
   const todayPerUser = new Map<string, TodayCheckin[]>()
   const hoursPerUser = new Map<string, number[]>()
   const rarityPerUser = new Map<string, Record<Rarity, number>>()
+  // 按掉落发生的时间顺序记录，用于排行榜按顺序展示图标（而非按档位分组）
+  const rarityHistoryPerUser = new Map<string, Array<{ id: Rarity; time: string }>>()
 
   const today = getTodayDate()
   for (const c of rows) {
@@ -360,6 +363,10 @@ function buildRanking(
       const counts = rarityPerUser.get(c.user_id) || emptyRarityCounts()
       counts[c.rarity] += 1
       rarityPerUser.set(c.user_id, counts)
+
+      const history = rarityHistoryPerUser.get(c.user_id) || []
+      history.push({ id: c.rarity, time: c.created_at })
+      rarityHistoryPerUser.set(c.user_id, history)
     }
 
     if (includeToday && c.date === today) {
@@ -387,6 +394,9 @@ function buildRanking(
       streak,
       checkedToday: todayCheckins.length > 0,
       todayCheckins,
+      rarityHistory: (rarityHistoryPerUser.get(u.id) || [])
+        .sort((a, b) => a.time.localeCompare(b.time))
+        .map(h => h.id),
       rarityCounts: rarityPerUser.get(u.id) || emptyRarityCounts(),
       isLastWeekChampion: champions.has(u.id),
       undoCount: undoStats.get(u.id)?.total ?? 0,
