@@ -61,6 +61,8 @@ export function Home() {
   // 存住这次打卡要展示的图标与吐槽，非空即代表分享询问弹窗打开
   const [sharePrompt, setSharePrompt] = useState<{ icon: string; cheer: string; reward?: string } | null>(null)
   const [showRecoveryCode, setShowRecoveryCode] = useState(false)
+  // 非空即代表退出登录确认弹窗打开，退出前必须先复制找回码
+  const [showLogout, setShowLogout] = useState(false)
   const [showEditNickname, setShowEditNickname] = useState(false)
   const [showEditAvatar, setShowEditAvatar] = useState(false)
   // 非空即代表奖券弹窗打开
@@ -314,6 +316,43 @@ export function Home() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleLogoutClick = async () => {
+    if (!user || loading) return
+    // 退出前必须确保能拿到找回码，否则一退出这个身份就再也找不回来了
+    if (!user.recoveryCode) {
+      setLoading(true)
+      try {
+        const found = await api.getUser(user.id, roomId)
+        if (!found?.recovery_code) {
+          alert('没查到你的找回码，暂时无法退出，请联系群主处理')
+          return
+        }
+        const nextUser = { ...user, recoveryCode: found.recovery_code }
+        setLocalUser(roomId, nextUser)
+        setUser(nextUser)
+      } catch {
+        alert('找回码获取失败，请重试')
+        return
+      } finally {
+        setLoading(false)
+      }
+    }
+    setShowLogout(true)
+  }
+
+  const handleCopyLogoutCode = () => {
+    if (!user?.recoveryCode || !navigator.clipboard) return
+    navigator.clipboard.writeText(user.recoveryCode)
+    setCopied(true)
+  }
+
+  const handleConfirmLogout = () => {
+    clearLocalUser(roomId)
+    setUser(null)
+    setShowLogout(false)
+    setCopied(false)
+  }
+
   const handleCloseUpdate = () => {
     setSeenUpdateVersion(UPDATE_VERSION)
     setShowUpdate(false)
@@ -481,6 +520,13 @@ export function Home() {
         >
           🔑 找回码
         </button>
+        <span className="text-gray-200">|</span>
+        <button
+          onClick={handleLogoutClick}
+          className="hover:text-gray-600 transition-colors"
+        >
+          🚪 退出登录
+        </button>
       </div>
 
       {/* Undo Warning Modal */}
@@ -541,6 +587,30 @@ export function Home() {
           <p className="text-2xl font-bold tracking-widest text-purple-600 bg-purple-50 rounded-xl py-3 mb-4">
             {user.recoveryCode}
           </p>
+        </ConfirmModal>
+      )}
+
+      {/* Logout Confirm Modal */}
+      {showLogout && (
+        <ConfirmModal
+          icon="🚪"
+          title="退出登录"
+          description="退出后本设备将不再自动识别你的身份，务必先复制找回码保存好"
+          cancelText="取消"
+          confirmText="已保存，确认退出"
+          confirmDisabled={!copied}
+          onCancel={() => { setShowLogout(false); setCopied(false) }}
+          onConfirm={handleConfirmLogout}
+        >
+          <button
+            onClick={handleCopyLogoutCode}
+            className="w-full mb-6 py-3 rounded-xl border border-dashed border-purple-300 bg-purple-50 transition-colors hover:bg-purple-100"
+          >
+            <p className="text-2xl font-bold tracking-widest text-purple-600">
+              {user.recoveryCode}
+            </p>
+            <p className="text-xs text-purple-400 mt-1">{copied ? '已复制 ✓' : '点击复制找回码'}</p>
+          </button>
         </ConfirmModal>
       )}
 
